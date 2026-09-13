@@ -1,9 +1,7 @@
 package ui
 
 import (
-	"context"
 	"fmt"
-	"time"
 
 	"github.com/Alagroc/ssm-me/pkg/awsclient"
 	"github.com/Alagroc/ssm-me/pkg/kubectl"
@@ -59,26 +57,12 @@ func NewApp() *App {
 	a.tv.SetInputCapture(a.globalKeys)
 
 	a.renderHeader(pageNodes)
-	a.setStatus("[green]Ready[-]")
+	a.setStatus("[gray]Press r to load nodes[-]")
 	return a
 }
 
 func (a *App) Run() error {
-	go a.loadContext()
 	return a.tv.Run()
-}
-
-func (a *App) loadContext() {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	c, err := kubectl.GetCurrentContext(ctx)
-	if err != nil {
-		a.setStatus(fmt.Sprintf("[red]%v[-]", err))
-		return
-	}
-	a.context = c
-	a.tv.QueueUpdateDraw(func() { a.renderHeader(pageNodes) })
 }
 
 func (a *App) setStatus(msg string) {

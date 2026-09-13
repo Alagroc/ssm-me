@@ -1,7 +1,9 @@
 package ui
 
 import (
+	"context"
 	"fmt"
+	"time"
 
 	"github.com/Alagroc/ssm-me/pkg/kubectl"
 	"github.com/gdamore/tcell/v2"
@@ -87,15 +89,26 @@ func newNodesView(app *App) *NodesView {
 }
 
 func (v *NodesView) refresh() {
-	v.app.setStatus("[yellow]Refreshing nodes...[-]")
-	nodes, err := kubectl.GetNodes()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	v.app.setStatus("[yellow]Loading...[-]")
+
+	if v.app.context == "" {
+		if c, err := kubectl.GetCurrentContext(ctx); err == nil && c != "" {
+			v.app.context = c
+			v.app.tv.QueueUpdateDraw(func() { v.app.renderHeader(pageNodes) })
+		}
+	}
+
+	nodes, err := kubectl.GetNodes(ctx)
 	if err != nil {
-		v.app.setStatus(fmt.Sprintf("[red]kubectl error: %v[-]", err))
+		v.app.setStatus(fmt.Sprintf("[red]%v[-]", err))
 		return
 	}
 	v.app.nodes = nodes
 	v.applyFilter()
-	v.app.setStatus(fmt.Sprintf("[green]Loaded %d nodes[-]", len(nodes)))
+	v.app.setStatus(fmt.Sprintf("[green]%d nodes[-]", len(nodes)))
 }
 
 func (v *NodesView) applyFilter() {

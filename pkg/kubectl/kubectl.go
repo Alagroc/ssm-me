@@ -14,8 +14,8 @@ type Node struct {
 	Labels map[string]string
 }
 
-func GetNodes() ([]Node, error) {
-	out, err := exec.Command("kubectl", "get", "nodes", "--show-labels", "--no-headers").Output()
+func GetNodes(ctx context.Context) ([]Node, error) {
+	out, err := exec.CommandContext(ctx, "kubectl", "get", "nodes", "--show-labels", "--no-headers").Output()
 	if err != nil {
 		return nil, fmt.Errorf("kubectl get nodes: %w", err)
 	}
