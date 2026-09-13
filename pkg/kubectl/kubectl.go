@@ -2,6 +2,7 @@ package kubectl
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -21,10 +22,10 @@ func GetNodes() ([]Node, error) {
 	return ParseNodes(string(out)), nil
 }
 
-func GetCurrentContext() (string, error) {
-	out, err := exec.Command("kubectl", "config", "current-context").Output()
+func GetCurrentContext(ctx context.Context) (string, error) {
+	out, err := exec.CommandContext(ctx, "kubectl", "config", "current-context").Output()
 	if err != nil {
-		return "unknown", nil
+		return "", fmt.Errorf("kubectl context: %w", err)
 	}
 	return strings.TrimSpace(string(out)), nil
 }
