@@ -57,7 +57,7 @@ func NewApp() *App {
 	a.tv.SetInputCapture(a.globalKeys)
 
 	a.renderHeader(pageNodes)
-	a.setStatus("[gray]Press r to load nodes[-]")
+	a.status.SetText(" [gray]Press r to load nodes[-]")
 	return a
 }
 
