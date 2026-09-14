@@ -117,6 +117,9 @@ func (a *App) switchTo(page string) {
 		a.tv.SetFocus(a.executeView.cmd)
 	case pageNodes:
 		a.tv.SetFocus(a.nodesView.table)
+	case pageHistory:
+		go a.historyView.refresh()
+		a.tv.SetFocus(a.historyView.table)
 	}
 }
 
