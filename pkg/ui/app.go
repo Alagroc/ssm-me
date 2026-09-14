@@ -127,7 +127,17 @@ func (a *App) switchTo(page string) {
 	switch page {
 	case pageExecute:
 		a.executeView.update()
-		a.tv.SetFocus(a.executeView.cmd)
+		if len(a.selected) > 0 {
+			// Nodes are selected — this is a deliberate "go execute a
+			// command" navigation, so jump straight into the text area.
+			a.tv.SetFocus(a.executeView.cmd)
+		} else {
+			// Nothing selected — likely just cycling through tabs (e.g.
+			// with Left/Right). Focusing the text area would trap those
+			// keys as cursor movement instead of continuing to cycle, so
+			// land on the read-only node box instead.
+			a.tv.SetFocus(a.executeView.nodeBox)
+		}
 	case pageNodes:
 		a.tv.SetFocus(a.nodesView.table)
 	case pageHistory:
