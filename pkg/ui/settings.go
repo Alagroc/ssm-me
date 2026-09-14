@@ -3,7 +3,6 @@ package ui
 import (
 	"github.com/Alagroc/ssm-me/pkg/debuglog"
 	"github.com/Alagroc/ssm-me/pkg/store"
-	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 )
 
@@ -41,13 +40,6 @@ func newSettingsView(app *App) *SettingsView {
 		app.applyThemeLive(themeOrder[index])
 	})
 
-	// Checkboxes are built standalone (not via Form.AddCheckbox) and styled
-	// explicitly in applyTheme, rather than left to Form's generic
-	// SetFieldBackgroundColor/SetFieldTextColor: those cross-wire a
-	// checkbox's focus style (its SetFieldBackgroundColor sets focusStyle's
-	// FOREGROUND, and SetFieldTextColor sets focusStyle's BACKGROUND) in a
-	// way that produced checked/focused states with too little contrast to
-	// read against the default theme's background.
 	v.debugLogCheckbox = tview.NewCheckbox().
 		SetLabel("Enable debug log").
 		SetChecked(debuglog.Enabled()).
@@ -83,23 +75,25 @@ func (v *SettingsView) updateHelp() {
 
 // applyTheme re-colors this view's primitives after a live theme switch.
 // Must run on the main event-loop goroutine (see App.applyThemeLive).
+//
+// tview.Form.Draw() re-applies fieldBackgroundColor/fieldTextColor to every
+// item on every redraw (via FormItem.SetFormAttributes), so per-item style
+// overrides set here would just get stomped on the next frame — the form's
+// two field colors are the only thing that sticks. For Checkbox specifically,
+// SetFieldBackgroundColor/SetFieldTextColor also drive its *focus* style,
+// with fg/bg swapped: focus background = fieldTextColor. That's why this
+// used activeTheme.Background as fieldTextColor before: a focused checkbox's
+// background became literally the same color as the page, so the cursor
+// visually vanished. Using activeTheme.Accent instead guarantees the focus
+// background is never the page background, in every theme, by construction
+// (each Theme already keeps Accent distinct from Background).
 func (v *SettingsView) applyTheme() {
 	v.form.SetBackgroundColor(activeTheme.Background)
 	v.form.SetFieldBackgroundColor(activeTheme.Border)
-	v.form.SetFieldTextColor(activeTheme.Background)
+	v.form.SetFieldTextColor(activeTheme.Accent)
 	v.form.SetLabelColor(activeTheme.Accent)
 	v.form.SetButtonBackgroundColor(activeTheme.Border)
-	v.form.SetButtonTextColor(activeTheme.Background)
-
-	// Checked = solid accent block (the theme's brightest color) so "on" is
-	// unmistakable; unchecked = border color, dimmer by contrast; focused =
-	// fixed white-on-black regardless of theme, for a reliable cursor.
-	for _, cb := range []*tview.Checkbox{v.debugLogCheckbox, v.autoRefreshCheckbox} {
-		cb.SetCheckedStyle(tcell.StyleDefault.Background(activeTheme.Accent).Foreground(activeTheme.Background))
-		cb.SetUncheckedStyle(tcell.StyleDefault.Background(activeTheme.Border).Foreground(activeTheme.Background))
-		cb.SetActivatedStyle(tcell.StyleDefault.Background(tcell.ColorWhite).Foreground(tcell.ColorBlack))
-		cb.SetCheckedString("X").SetUncheckedString(" ")
-	}
+	v.form.SetButtonTextColor(activeTheme.Accent)
 
 	v.help.SetBackgroundColor(activeTheme.Background)
 	v.updateHelp()
