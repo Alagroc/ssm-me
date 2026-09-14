@@ -12,6 +12,7 @@ A terminal UI (TUI) for managing AWS SSM commands against Kubernetes nodes.
 - **Execute view** — send shell commands via AWS SSM (`AWS-RunShellScript`) to selected nodes
 - **Execution history** — all runs are stored in `/tmp/ssm-me/`; view stdout/stderr per execution
 - **Node stats** — `kubectl top node` output shown inline
+- **Settings view** — switch color scheme (Default/Dark/High Contrast) and toggle the debug log live, no restart needed; choices persist to `/tmp/ssm-me/settings.json`
 
 ## Requirements
 
@@ -55,6 +56,7 @@ go build -o ssm-me .
 | `1` | Nodes view |
 | `2` | Execute view |
 | `3` | History view |
+| `4` | Settings view |
 | `Space` / `Enter` | Select/deselect node (nodes view) |
 | `e` | Go to Execute with current selection |
 | `s` | Open an interactive SSM session against the highlighted node |
@@ -85,11 +87,23 @@ Executions are persisted in `/tmp/ssm-me/`:
 
 - `executions.json` — index of all runs (command ID, nodes, status, timestamp)
 - `<uuid>.txt` — stdout/stderr output per execution
+- `settings.json` — color scheme and debug log preference
+
+## Settings
+
+Open the Settings view (`4`) to change:
+
+- **Color scheme** — Default (blue, classic ncurses "blue screen" look à la iptraf/Midnight Commander), Dark, or High Contrast. Applies immediately, no restart.
+- **Enable debug log** — see below. Also applies immediately.
+
+Both choices are persisted to `/tmp/ssm-me/settings.json` and reloaded on the next run.
 
 ## Debugging
 
-Every run writes a log to `/tmp/<random>-ssm-me.log` (the path is printed to stderr on startup, before the TUI takes over the terminal). It records every `aws`/`kubectl` command run — full argument list, stdout, stderr, and error — plus every status-bar message, since the status bar is a single line and truncates long errors. Tail it in another terminal while reproducing an issue:
+Enable the debug log — via `--debug-log` at startup, or the "Enable debug log" checkbox in Settings — to write a log to `/tmp/<random>-ssm-me.log` (the path is printed to stderr on startup, or shown in the status bar when enabled from Settings). It records every `aws`/`kubectl` command run — full argument list, stdout, stderr, and error — plus every status-bar message, since the status bar is a single line and truncates long errors. Tail it in another terminal while reproducing an issue:
 
 ```bash
+./ssm-me --debug-log
+# in another terminal:
 tail -f /tmp/*-ssm-me.log
 ```

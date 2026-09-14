@@ -7,24 +7,53 @@ package debuglog
 import (
 	"log"
 	"os"
+	"sync"
 )
 
-var logger *log.Logger
+var (
+	mu      sync.Mutex
+	logger  *log.Logger
+	logPath string
+	enabled bool
+)
 
-// Init opens /tmp/<random>-ssm-me.log and returns its path. Safe to call
-// once at startup; if it fails, Printf becomes a silent no-op.
-func Init() (string, error) {
-	f, err := os.CreateTemp("", "*-ssm-me.log")
-	if err != nil {
-		return "", err
+// SetEnabled turns logging on or off. Enabling for the first time lazily
+// opens /tmp/<random>-ssm-me.log and returns its path; disabling just stops
+// further writes without closing the file. Safe to call repeatedly (e.g.
+// from a settings toggle).
+func SetEnabled(v bool) (string, error) {
+	mu.Lock()
+	defer mu.Unlock()
+	if v && logger == nil {
+		f, err := os.CreateTemp("", "*-ssm-me.log")
+		if err != nil {
+			return "", err
+		}
+		logger = log.New(f, "", log.LstdFlags|log.Lmicroseconds)
+		logPath = f.Name()
 	}
-	logger = log.New(f, "", log.LstdFlags|log.Lmicroseconds)
-	return f.Name(), nil
+	enabled = v
+	return logPath, nil
+}
+
+func Enabled() bool {
+	mu.Lock()
+	defer mu.Unlock()
+	return enabled
+}
+
+func Path() string {
+	mu.Lock()
+	defer mu.Unlock()
+	return logPath
 }
 
 func Printf(format string, args ...any) {
-	if logger == nil {
+	mu.Lock()
+	l, en := logger, enabled
+	mu.Unlock()
+	if !en || l == nil {
 		return
 	}
-	logger.Printf(format, args...)
+	l.Printf(format, args...)
 }

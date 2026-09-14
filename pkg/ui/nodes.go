@@ -18,6 +18,7 @@ type NodesView struct {
 	table         *tview.Table
 	filter        *tview.InputField
 	info          *tview.TextView
+	help          *tview.TextView
 	filtered      []kubectl.Node
 	activeFilters []kubectl.Filter
 }
@@ -81,18 +82,38 @@ func newNodesView(app *App) *NodesView {
 
 	v.info = tview.NewTextView().SetDynamicColors(true)
 
-	help := tview.NewTextView().
-		SetDynamicColors(true).
-		SetText(" [dodgerblue]Space/Enter[-]:select  [dodgerblue]e[-]:execute  [dodgerblue]s[-]:ssm session  [dodgerblue]r[-]:refresh  [dodgerblue]f[-]:filter  [dodgerblue]t[-]:top  [dodgerblue]Esc[-]:clear selection  [dodgerblue]Q[-]:quit")
+	v.help = tview.NewTextView().SetDynamicColors(true)
+	v.updateHelp()
 
 	v.root = tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(v.filter, 1, 0, false).
 		AddItem(v.table, 0, 1, true).
 		AddItem(v.info, 1, 0, false).
-		AddItem(help, 1, 0, false)
+		AddItem(v.help, 1, 0, false)
 
 	v.renderHeader()
 	return v
+}
+
+func (v *NodesView) updateHelp() {
+	v.help.SetText(" " + accentTag("Space/Enter") + ":select  " + accentTag("e") + ":execute  " +
+		accentTag("s") + ":ssm session  " + accentTag("r") + ":refresh  " + accentTag("f") + ":filter  " +
+		accentTag("t") + ":top  " + accentTag("Esc") + ":clear selection  " + accentTag("Q") + ":quit")
+}
+
+// applyTheme re-colors this view's primitives and re-renders its
+// theme-tagged text after a live theme switch. Must run on the main
+// event-loop goroutine (see App.applyThemeLive).
+func (v *NodesView) applyTheme() {
+	v.filter.SetBackgroundColor(activeTheme.Background)
+	v.table.SetBackgroundColor(activeTheme.Background)
+	v.info.SetBackgroundColor(activeTheme.Background)
+	v.help.SetBackgroundColor(activeTheme.Background)
+
+	v.renderHeader()
+	v.renderRows()
+	v.updateHelp()
+	v.info.SetText(fmt.Sprintf(" %s", infoTag(fmt.Sprintf("%d/%d nodes", len(v.filtered), len(v.app.nodes)))))
 }
 
 func (v *NodesView) refresh() {
@@ -126,7 +147,7 @@ func (v *NodesView) applyFilter() {
 
 func (v *NodesView) renderFiltered() {
 	v.renderRows()
-	v.info.SetText(fmt.Sprintf(" [gray]%d/%d nodes[-]", len(v.filtered), len(v.app.nodes)))
+	v.info.SetText(" " + infoTag(fmt.Sprintf("%d/%d nodes", len(v.filtered), len(v.app.nodes))))
 }
 
 func (v *NodesView) renderHeader() {
@@ -144,7 +165,7 @@ func (v *NodesView) renderHeader() {
 	}
 	for i, c := range cols {
 		cell := tview.NewTableCell(c.title).
-			SetTextColor(tcell.ColorDodgerBlue).
+			SetTextColor(activeTheme.Accent).
 			SetSelectable(false).
 			SetExpansion(c.exp)
 		v.table.SetCell(0, i, cell)
@@ -160,7 +181,7 @@ func (v *NodesView) renderRows() {
 		color := tcell.ColorWhite
 		prefix := "  "
 		if v.app.selected[n.Name] {
-			color = tcell.ColorDodgerBlue
+			color = activeTheme.Accent
 			prefix = "✓ "
 		}
 
@@ -177,7 +198,7 @@ func (v *NodesView) renderRows() {
 		v.table.SetCell(row, 5, tview.NewTableCell(n.Labels["karpenter.sh/nodepool"]).SetTextColor(color).SetExpansion(1))
 
 		matched := strings.Join(kubectl.MatchedLabels(n, v.activeFilters), ", ")
-		v.table.SetCell(row, 6, tview.NewTableCell(matched).SetTextColor(tcell.ColorSkyblue).SetExpansion(3))
+		v.table.SetCell(row, 6, tview.NewTableCell(matched).SetTextColor(activeTheme.Info).SetExpansion(3))
 	}
 }
 
@@ -201,7 +222,7 @@ func (v *NodesView) showTopStats() {
 	}
 
 	v.app.tv.QueueUpdateDraw(func() {
-		content := fmt.Sprintf("[dodgerblue]kubectl top node %s[-]\n\n%s\n\n[gray]Press Esc or q to close[-]", name, out)
+		content := fmt.Sprintf("%s\n\n%s\n\n%s", accentTag("kubectl top node "+name), out, infoTag("Press Esc or q to close"))
 		modal := newTextModal(v.app, content, "top-modal")
 		v.app.pages.AddPage("top-modal", modal, true, true)
 		v.app.tv.SetFocus(modal)

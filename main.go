@@ -15,7 +15,7 @@ import (
 const helpText = `ssm-me — terminal UI for AWS SSM on Kubernetes nodes
 
 USAGE
-  ssm-me [--help]
+  ssm-me [--help] [--debug-log]
 
 KEYBINDINGS
 
@@ -23,6 +23,7 @@ KEYBINDINGS
     1              Nodes view
     2              Execute view
     3              History view
+    4              Settings view
     Q              Quit
 
   Nodes view
@@ -45,6 +46,10 @@ KEYBINDINGS
     d              Delete selected execution
     Esc / q        Close output modal
 
+  Settings view
+    Tab / Down     Next field
+    Enter          Change color scheme / toggle debug log
+
 FILTER SYNTAX
   Comma-separated key=value pairs, or a bare key substring to match any
   label whose key contains it:
@@ -56,11 +61,22 @@ STORAGE
   Executions are stored in /tmp/ssm-me/
     executions.json   index of all runs
     <uuid>.txt        stdout/stderr per execution
+
+DEBUG LOG
+  --debug-log (or "Enable debug log" in the Settings view) writes a full
+  trace of every aws/kubectl command (args, stdout, stderr, error) and
+  status-bar message to /tmp/<random>-ssm-me.log (path printed to stderr
+  on startup, or shown in the status bar when enabled from Settings).
+
+SETTINGS
+  Color scheme and debug log preferences are persisted to
+  /tmp/ssm-me/settings.json and reloaded on the next run.
 `
 
 func main() {
 	help := flag.Bool("help", false, "show keybindings and usage")
 	flag.BoolVar(help, "h", false, "show keybindings and usage")
+	debugLog := flag.Bool("debug-log", false, "write a full command/status trace to /tmp/<random>-ssm-me.log")
 	flag.Parse()
 
 	if *help {
@@ -68,15 +84,23 @@ func main() {
 		os.Exit(0)
 	}
 
-	if logPath, err := debuglog.Init(); err != nil {
-		log.Printf("debug log: %v (continuing without it)", err)
-	} else {
-		fmt.Fprintf(os.Stderr, "ssm-me: debug log at %s\n", logPath)
-		debuglog.Printf("ssm-me starting")
-	}
-
 	if err := store.Init(); err != nil {
 		log.Fatalf("init store: %v", err)
+	}
+
+	settings, err := store.LoadSettings()
+	if err != nil {
+		log.Printf("load settings: %v (using defaults)", err)
+		settings = store.Settings{Theme: "default"}
+	}
+
+	if *debugLog || settings.DebugLog {
+		if logPath, err := debuglog.SetEnabled(true); err != nil {
+			log.Printf("debug log: %v (continuing without it)", err)
+		} else {
+			fmt.Fprintf(os.Stderr, "ssm-me: debug log at %s\n", logPath)
+			debuglog.Printf("ssm-me starting")
+		}
 	}
 
 	awsClient, err := awsclient.New()
@@ -84,7 +108,7 @@ func main() {
 		log.Printf("aws: %v — SSM features disabled until this is fixed", err)
 	}
 
-	app := ui.NewApp(awsClient)
+	app := ui.NewApp(awsClient, settings.Theme)
 	if err := app.Run(); err != nil {
 		log.Fatalf("run: %v", err)
 	}

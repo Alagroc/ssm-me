@@ -13,6 +13,7 @@ type HistoryView struct {
 	app   *App
 	root  *tview.Flex
 	table *tview.Table
+	help  *tview.TextView
 	execs []store.Execution
 }
 
@@ -45,16 +46,31 @@ func newHistoryView(app *App) *HistoryView {
 		return event
 	})
 
-	help := tview.NewTextView().
-		SetDynamicColors(true).
-		SetText(" [dodgerblue]Enter[-]:view output  [dodgerblue]r[-]:refresh  [dodgerblue]d[-]:delete  [dodgerblue]1-3[-]:tabs")
+	v.help = tview.NewTextView().SetDynamicColors(true)
+	v.updateHelp()
 
 	v.root = tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(v.table, 0, 1, true).
-		AddItem(help, 1, 0, false)
+		AddItem(v.help, 1, 0, false)
 
 	v.renderHeader()
 	return v
+}
+
+func (v *HistoryView) updateHelp() {
+	v.help.SetText(" " + accentTag("Enter") + ":view output  " + accentTag("r") + ":refresh  " +
+		accentTag("d") + ":delete  " + accentTag("1-3") + ":tabs")
+}
+
+// applyTheme re-colors this view's primitives and re-renders its
+// theme-tagged text after a live theme switch. Must run on the main
+// event-loop goroutine (see App.applyThemeLive).
+func (v *HistoryView) applyTheme() {
+	v.table.SetBackgroundColor(activeTheme.Background)
+	v.help.SetBackgroundColor(activeTheme.Background)
+	v.renderHeader()
+	v.renderRows()
+	v.updateHelp()
 }
 
 func (v *HistoryView) renderHeader() {
@@ -70,7 +86,7 @@ func (v *HistoryView) renderHeader() {
 	}
 	for i, h := range headers {
 		v.table.SetCell(0, i, tview.NewTableCell(h.title).
-			SetTextColor(tcell.ColorDodgerBlue).
+			SetTextColor(activeTheme.Accent).
 			SetSelectable(false).
 			SetExpansion(h.exp))
 	}
@@ -113,13 +129,13 @@ func (v *HistoryView) renderRows() {
 
 		statusColor := executionStatusColor(e.Status)
 
-		v.table.SetCell(row, 0, tview.NewTableCell(ts).SetTextColor(tcell.ColorGray).SetSelectable(true))
-		v.table.SetCell(row, 1, tview.NewTableCell(cmdID).SetTextColor(tcell.ColorDodgerBlue).SetSelectable(true))
+		v.table.SetCell(row, 0, tview.NewTableCell(ts).SetTextColor(activeTheme.Info).SetSelectable(true))
+		v.table.SetCell(row, 1, tview.NewTableCell(cmdID).SetTextColor(activeTheme.Info).SetSelectable(true))
 		v.table.SetCell(row, 2, tview.NewTableCell(cmd).SetTextColor(tcell.ColorWhite).SetExpansion(2).SetSelectable(true))
-		v.table.SetCell(row, 3, tview.NewTableCell(nodes).SetTextColor(tcell.ColorGray).SetExpansion(1).SetSelectable(true))
+		v.table.SetCell(row, 3, tview.NewTableCell(nodes).SetTextColor(activeTheme.Info).SetExpansion(1).SetSelectable(true))
 		v.table.SetCell(row, 4, tview.NewTableCell(e.Status).SetTextColor(statusColor).SetSelectable(true))
 	}
-	v.app.status.SetText(fmt.Sprintf(" [gray]%d executions — press Enter to view output[-]", len(v.execs)))
+	v.app.status.SetText(" " + infoTag(fmt.Sprintf("%d executions — press Enter to view output", len(v.execs))))
 }
 
 func (v *HistoryView) showOutput(exec store.Execution) {
@@ -128,12 +144,12 @@ func (v *HistoryView) showOutput(exec store.Execution) {
 		output = fmt.Sprintf("[Output not yet available]\n\nCommand ID: %s\nStatus: %s\n\nOutput is saved once the command completes.", exec.CommandID, exec.Status)
 	}
 
-	header := fmt.Sprintf("[dodgerblue]Command:[-]  %s\n[dodgerblue]ID:[-]       %s\n[dodgerblue]Nodes:[-]    %s\n[dodgerblue]Time:[-]     %s\n[dodgerblue]Status:[-]   %s\n\n",
-		exec.Command,
-		exec.CommandID,
-		strings.Join(exec.NodeNames, ", "),
-		exec.Timestamp.Format("2006-01-02 15:04:05"),
-		exec.Status,
+	header := fmt.Sprintf("%s  %s\n%s       %s\n%s    %s\n%s     %s\n%s   %s\n\n",
+		accentTag("Command:"), exec.Command,
+		accentTag("ID:"), exec.CommandID,
+		accentTag("Nodes:"), strings.Join(exec.NodeNames, ", "),
+		accentTag("Time:"), exec.Timestamp.Format("2006-01-02 15:04:05"),
+		accentTag("Status:"), exec.Status,
 	)
 
 	v.app.tv.QueueUpdateDraw(func() {

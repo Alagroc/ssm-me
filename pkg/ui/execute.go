@@ -20,6 +20,7 @@ type ExecuteView struct {
 	nodeBox *tview.TextView
 	cmd     *tview.TextArea
 	comment *tview.InputField
+	help    *tview.TextView
 }
 
 func newExecuteView(app *App) *ExecuteView {
@@ -27,12 +28,10 @@ func newExecuteView(app *App) *ExecuteView {
 
 	v.nodeBox = tview.NewTextView().SetDynamicColors(true)
 	v.nodeBox.SetBorder(true)
-	v.nodeBox.SetBorderColor(tcell.ColorDodgerBlue)
 	v.nodeBox.SetTitle(" Selected Nodes ")
 
 	v.cmd = tview.NewTextArea().SetPlaceholder("Enter shell command...")
 	v.cmd.SetBorder(true)
-	v.cmd.SetBorderColor(tcell.ColorDodgerBlue)
 	v.cmd.SetTitle(" Command (Ctrl+E to execute) ")
 
 	v.comment = tview.NewInputField().
@@ -40,16 +39,15 @@ func newExecuteView(app *App) *ExecuteView {
 		SetFieldWidth(60).
 		SetFieldTextColor(tcell.ColorWhite)
 
-	help := tview.NewTextView().
-		SetDynamicColors(true).
-		SetText(" [dodgerblue]Ctrl+E[-]:execute  [dodgerblue]Tab[-]:next field  [dodgerblue]Esc[-]:back to nodes  [dodgerblue]1-3[-]:tabs")
+	v.help = tview.NewTextView().SetDynamicColors(true)
+	v.updateHelp()
 
 	v.root = tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(v.nodeBox, 0, 1, false).
 		AddItem(v.cmd, 0, 2, true).
 		AddItem(v.comment, 1, 0, false).
 		AddItem(tview.NewBox(), 1, 0, false).
-		AddItem(help, 1, 0, false)
+		AddItem(v.help, 1, 0, false)
 
 	v.root.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Key() == tcell.KeyCtrlE {
@@ -66,6 +64,21 @@ func newExecuteView(app *App) *ExecuteView {
 	return v
 }
 
+func (v *ExecuteView) updateHelp() {
+	v.help.SetText(" " + accentTag("Ctrl+E") + ":execute  " + accentTag("Tab") + ":next field  " +
+		accentTag("Esc") + ":back to nodes  " + accentTag("1-3") + ":tabs")
+}
+
+// applyTheme re-colors this view's primitives after a live theme switch.
+// Must run on the main event-loop goroutine (see App.applyThemeLive).
+func (v *ExecuteView) applyTheme() {
+	v.nodeBox.SetBackgroundColor(activeTheme.Background)
+	v.cmd.SetBackgroundColor(activeTheme.Background)
+	v.comment.SetBackgroundColor(activeTheme.Background)
+	v.help.SetBackgroundColor(activeTheme.Background)
+	v.updateHelp()
+}
+
 func (v *ExecuteView) update() {
 	var names []string
 	for name, ok := range v.app.selected {
@@ -74,7 +87,7 @@ func (v *ExecuteView) update() {
 		}
 	}
 	if len(names) == 0 {
-		v.nodeBox.SetText("[gray]No nodes selected. Go to Nodes (1) and press Space/Enter to select.[-]")
+		v.nodeBox.SetText(infoTag("No nodes selected. Go to Nodes (1) and press Space/Enter to select."))
 	} else {
 		v.nodeBox.SetText("[green]" + strings.Join(names, "\n") + "[-]")
 	}
