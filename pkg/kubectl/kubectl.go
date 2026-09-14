@@ -57,6 +57,29 @@ func GetCurrentContext(ctx context.Context) (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
+// ListContexts returns every context name defined in the local kubeconfig.
+func ListContexts(ctx context.Context) ([]string, error) {
+	out, err := runKubectl(ctx, "config", "get-contexts", "-o", "name")
+	if err != nil {
+		return nil, err
+	}
+	var contexts []string
+	scanner := bufio.NewScanner(strings.NewReader(string(out)))
+	for scanner.Scan() {
+		if name := strings.TrimSpace(scanner.Text()); name != "" {
+			contexts = append(contexts, name)
+		}
+	}
+	return contexts, nil
+}
+
+// UseContext switches kubectl's active context, affecting every subsequent
+// kubectl invocation (this process's and any other's) until changed again.
+func UseContext(ctx context.Context, name string) error {
+	_, err := runKubectl(ctx, "config", "use-context", name)
+	return err
+}
+
 func ParseNodes(output string) []Node {
 	var nodes []Node
 	scanner := bufio.NewScanner(strings.NewReader(output))

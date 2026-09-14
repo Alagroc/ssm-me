@@ -5,6 +5,7 @@ A terminal UI (TUI) for managing AWS SSM commands against Kubernetes nodes.
 ## Features
 
 - **Nodes view** — lists nodes from the current `kubectl` context with their labels (instance type, zone, capacity type, nodepool)
+- **Context switching** — press `c` to pick a different `kubectl` context from your kubeconfig and reload nodes against it, no restart needed
 - **Label filtering** — filter nodes by `key=value` pairs, or by a bare `key` substring to match any label whose *key* contains it (e.g. `topology.gemini.com` matches every `topology.gemini.com/*` label)
 - **Matched labels column** — when a filter is active, the specific label(s) that matched are shown per row
 - **Multi-select** — select one or more nodes for targeted SSM execution
@@ -65,6 +66,7 @@ go build -o ssm-me .
 | `r` | Refresh nodes / execution history |
 | `/` | Focus filter input |
 | `t` | Show `kubectl top node` stats for selected row |
+| `c` | Switch `kubectl` context |
 | `Esc` | Clear selection (nodes) / back to nodes (execute) |
 | `Ctrl+E` | Send SSM command |
 | `d` | Delete execution from history |

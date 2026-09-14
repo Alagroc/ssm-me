@@ -71,6 +71,9 @@ func newNodesView(app *App) *NodesView {
 		case event.Key() == tcell.KeyRune && event.Rune() == 's':
 			go v.startSession()
 			return nil
+		case event.Key() == tcell.KeyRune && event.Rune() == 'c':
+			go v.pickContext()
+			return nil
 		case event.Key() == tcell.KeyEsc:
 			app.selected = make(map[string]bool)
 			v.renderRows()
@@ -97,7 +100,7 @@ func newNodesView(app *App) *NodesView {
 
 func (v *NodesView) updateHelp() {
 	v.help.SetText(" " + accentTag("Space/Enter") + ":select  " + accentTag("e") + ":execute  " +
-		accentTag("s") + ":ssm session  " + accentTag("r") + ":refresh  " + accentTag("/") + ":filter  " +
+		accentTag("s") + ":ssm session  " + accentTag("c") + ":context  " + accentTag("r") + ":refresh  " + accentTag("/") + ":filter  " +
 		accentTag("t") + ":top  " + accentTag("Esc") + ":clear selection  " + accentTag("◄►") + "/" + accentTag("1-4") + ":tabs  " +
 		accentTag("Shift+E") + ":results  " + accentTag("Q") + ":quit")
 }
@@ -274,6 +277,77 @@ func (v *NodesView) startSession() {
 		return
 	}
 	v.app.setStatus(fmt.Sprintf("[green]Session with %s closed[-]", n.Name))
+}
+
+// pickContext lists the contexts in the local kubeconfig and shows a
+// picker to switch between them without restarting the app.
+func (v *NodesView) pickContext() {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	v.app.setStatus("[yellow]Loading kubectl contexts...[-]")
+	contexts, err := kubectl.ListContexts(ctx)
+	if err != nil {
+		v.app.setStatus(fmt.Sprintf("[red]%v[-]", err))
+		return
+	}
+	if len(contexts) == 0 {
+		v.app.setStatus("[red]No kubectl contexts found[-]")
+		return
+	}
+
+	v.app.setStatus(infoTag("Select a context — Esc to cancel"))
+	v.app.tv.QueueUpdateDraw(func() {
+		v.showContextPicker(contexts)
+	})
+}
+
+func (v *NodesView) showContextPicker(contexts []string) {
+	list := tview.NewList().ShowSecondaryText(false)
+	list.SetBorder(true)
+	list.SetTitle(" Select kubectl context (Esc to cancel) ")
+
+	current := 0
+	for i, c := range contexts {
+		label := c
+		if c == v.app.context {
+			label += "  (current)"
+			current = i
+		}
+		list.AddItem(label, "", 0, nil)
+	}
+	list.SetCurrentItem(current)
+
+	closePicker := func() {
+		v.app.pages.RemovePage("context-picker")
+		v.app.tv.SetFocus(v.table)
+	}
+	list.SetDoneFunc(closePicker)
+	list.SetSelectedFunc(func(index int, _, _ string, _ rune) {
+		name := contexts[index]
+		closePicker()
+		if name != v.app.context {
+			go v.applyContext(name)
+		}
+	})
+
+	v.app.pages.AddPage("context-picker", list, true, true)
+	v.app.tv.SetFocus(list)
+}
+
+func (v *NodesView) applyContext(name string) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	v.app.setStatus(fmt.Sprintf("[yellow]Switching to context %s...[-]", name))
+	if err := kubectl.UseContext(ctx, name); err != nil {
+		v.app.setStatus(fmt.Sprintf("[red]%v[-]", err))
+		return
+	}
+
+	v.app.context = name
+	v.app.tv.QueueUpdateDraw(func() { v.app.renderHeader(pageNodes) })
+	v.refresh()
 }
 
 func nodeStatusColor(status string) tcell.Color {

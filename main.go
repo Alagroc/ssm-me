@@ -35,6 +35,7 @@ KEYBINDINGS
     e              Go to Execute with current selection
     s              Open interactive SSM session for highlighted node
     t              kubectl top node for highlighted row
+    c              Switch kubectl context
     Esc            Clear selection
 
   Execute view
