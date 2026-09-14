@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Alagroc/ssm-me/pkg/awsclient"
+	"github.com/Alagroc/ssm-me/pkg/kubectl"
 	"github.com/Alagroc/ssm-me/pkg/store"
 	"github.com/gdamore/tcell/v2"
 	"github.com/google/uuid"
@@ -26,10 +27,12 @@ func newExecuteView(app *App) *ExecuteView {
 
 	v.nodeBox = tview.NewTextView().SetDynamicColors(true)
 	v.nodeBox.SetBorder(true)
+	v.nodeBox.SetBorderColor(tcell.ColorDodgerBlue)
 	v.nodeBox.SetTitle(" Selected Nodes ")
 
 	v.cmd = tview.NewTextArea().SetPlaceholder("Enter shell command...")
 	v.cmd.SetBorder(true)
+	v.cmd.SetBorderColor(tcell.ColorDodgerBlue)
 	v.cmd.SetTitle(" Command (Ctrl+E to execute) ")
 
 	v.comment = tview.NewInputField().
@@ -39,7 +42,7 @@ func newExecuteView(app *App) *ExecuteView {
 
 	help := tview.NewTextView().
 		SetDynamicColors(true).
-		SetText(" [yellow]Ctrl+E[-]:execute  [yellow]Tab[-]:next field  [yellow]Esc[-]:back to nodes  [yellow]1-3[-]:tabs")
+		SetText(" [dodgerblue]Ctrl+E[-]:execute  [dodgerblue]Tab[-]:next field  [dodgerblue]Esc[-]:back to nodes  [dodgerblue]1-3[-]:tabs")
 
 	v.root = tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(v.nodeBox, 0, 1, false).
@@ -79,7 +82,7 @@ func (v *ExecuteView) update() {
 
 func (v *ExecuteView) execute() {
 	if v.app.aws == nil {
-		v.app.setStatus("[red]AWS client not initialized — check credentials / region[-]")
+		v.app.setStatus("[red]aws CLI not found — install it and restart[-]")
 		return
 	}
 
@@ -103,10 +106,29 @@ func (v *ExecuteView) execute() {
 	ctx := context.Background()
 	v.app.setStatus(fmt.Sprintf("[yellow]Resolving instance IDs for %d nodes...[-]", len(nodeNames)))
 
-	instanceMap, err := v.app.aws.ResolveInstanceIDs(ctx, nodeNames)
-	if err != nil {
-		v.app.setStatus(fmt.Sprintf("[red]EC2 lookup failed: %v[-]", err))
-		return
+	nodeByName := make(map[string]kubectl.Node, len(v.app.nodes))
+	for _, n := range v.app.nodes {
+		nodeByName[n.Name] = n
+	}
+
+	instanceMap := make(map[string]string, len(nodeNames))
+	var needsLookup []string
+	for _, name := range nodeNames {
+		if id, ok := nodeByName[name].Labels[kubectl.InstanceIDLabel]; ok && id != "" {
+			instanceMap[name] = id
+		} else {
+			needsLookup = append(needsLookup, name)
+		}
+	}
+	if len(needsLookup) > 0 {
+		resolved, err := v.app.aws.ResolveInstanceIDs(ctx, needsLookup)
+		if err != nil {
+			v.app.setStatus(fmt.Sprintf("[red]EC2 lookup failed: %v[-]", err))
+			return
+		}
+		for name, id := range resolved {
+			instanceMap[name] = id
+		}
 	}
 
 	var instanceIDs, unresolved []string

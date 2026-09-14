@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 
+	"github.com/Alagroc/ssm-me/pkg/awsclient"
 	"github.com/Alagroc/ssm-me/pkg/store"
 	"github.com/Alagroc/ssm-me/pkg/ui"
 )
@@ -28,6 +29,7 @@ KEYBINDINGS
     f  /           Focus filter input
     Space / Enter  Select / deselect node
     e              Go to Execute with current selection
+    s              Open interactive SSM session for highlighted node
     t              kubectl top node for highlighted row
     Esc            Clear selection
 
@@ -43,9 +45,11 @@ KEYBINDINGS
     Esc / q        Close output modal
 
 FILTER SYNTAX
-  Comma-separated key=value label pairs:
+  Comma-separated key=value pairs, or a bare key substring to match any
+  label whose key contains it:
     karpenter.sh/capacity-type=spot
     karpenter.sh/capacity-type=on-demand,topology.kubernetes.io/zone=us-east-1a
+    topology.gemini.com
 
 STORAGE
   Executions are stored in /tmp/ssm-me/
@@ -66,7 +70,13 @@ func main() {
 	if err := store.Init(); err != nil {
 		log.Fatalf("init store: %v", err)
 	}
-	app := ui.NewApp()
+
+	awsClient, err := awsclient.New()
+	if err != nil {
+		log.Printf("aws: %v — SSM features disabled until this is fixed", err)
+	}
+
+	app := ui.NewApp(awsClient)
 	if err := app.Run(); err != nil {
 		log.Fatalf("run: %v", err)
 	}

@@ -10,6 +10,7 @@ func newTextModal(app *App, text, pageName string) *tview.TextView {
 	tv := tview.NewTextView().SetDynamicColors(true).SetScrollable(true)
 	tv.SetText(text)
 	tv.SetBorder(true)
+	tv.SetBorderColor(tcell.ColorDodgerBlue)
 
 	tv.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Key() == tcell.KeyEsc || (event.Key() == tcell.KeyRune && event.Rune() == 'q') {

@@ -3,20 +3,23 @@ package ui
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
+	"github.com/Alagroc/ssm-me/pkg/awsclient"
 	"github.com/Alagroc/ssm-me/pkg/kubectl"
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 )
 
 type NodesView struct {
-	app      *App
-	root     *tview.Flex
-	table    *tview.Table
-	filter   *tview.InputField
-	info     *tview.TextView
-	filtered []kubectl.Node
+	app           *App
+	root          *tview.Flex
+	table         *tview.Table
+	filter        *tview.InputField
+	info          *tview.TextView
+	filtered      []kubectl.Node
+	activeFilters []kubectl.Filter
 }
 
 func newNodesView(app *App) *NodesView {
@@ -64,6 +67,9 @@ func newNodesView(app *App) *NodesView {
 		case event.Key() == tcell.KeyRune && event.Rune() == 't':
 			go v.showTopStats()
 			return nil
+		case event.Key() == tcell.KeyRune && event.Rune() == 's':
+			go v.startSession()
+			return nil
 		case event.Key() == tcell.KeyEsc:
 			app.selected = make(map[string]bool)
 			v.renderRows()
@@ -77,7 +83,7 @@ func newNodesView(app *App) *NodesView {
 
 	help := tview.NewTextView().
 		SetDynamicColors(true).
-		SetText(" [yellow]Space/Enter[-]:select  [yellow]e[-]:execute  [yellow]r[-]:refresh  [yellow]f[-]:filter  [yellow]t[-]:top  [yellow]Esc[-]:clear selection  [yellow]Q[-]:quit")
+		SetText(" [dodgerblue]Space/Enter[-]:select  [dodgerblue]e[-]:execute  [dodgerblue]s[-]:ssm session  [dodgerblue]r[-]:refresh  [dodgerblue]f[-]:filter  [dodgerblue]t[-]:top  [dodgerblue]Esc[-]:clear selection  [dodgerblue]Q[-]:quit")
 
 	v.root = tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(v.filter, 1, 0, false).
@@ -114,8 +120,8 @@ func (v *NodesView) refresh() {
 }
 
 func (v *NodesView) applyFilter() {
-	filters := kubectl.ParseFilters(v.filter.GetText())
-	v.filtered = kubectl.FilterNodes(v.app.nodes, filters)
+	v.activeFilters = kubectl.ParseFilters(v.filter.GetText())
+	v.filtered = kubectl.FilterNodes(v.app.nodes, v.activeFilters)
 }
 
 func (v *NodesView) renderFiltered() {
@@ -134,10 +140,11 @@ func (v *NodesView) renderHeader() {
 		{"ZONE", 0},
 		{"CAPACITY", 0},
 		{"NODEPOOL", 1},
+		{"MATCHED LABELS", 3},
 	}
 	for i, c := range cols {
 		cell := tview.NewTableCell(c.title).
-			SetTextColor(tcell.ColorYellow).
+			SetTextColor(tcell.ColorDodgerBlue).
 			SetSelectable(false).
 			SetExpansion(c.exp)
 		v.table.SetCell(0, i, cell)
@@ -153,11 +160,11 @@ func (v *NodesView) renderRows() {
 		color := tcell.ColorWhite
 		prefix := "  "
 		if v.app.selected[n.Name] {
-			color = tcell.ColorGreen
+			color = tcell.ColorDodgerBlue
 			prefix = "✓ "
 		}
 
-		nameCell := tview.NewTableCell(prefix+n.Name).
+		nameCell := tview.NewTableCell(prefix + n.Name).
 			SetTextColor(color).
 			SetExpansion(3).
 			SetReference(n.Name)
@@ -168,6 +175,9 @@ func (v *NodesView) renderRows() {
 		v.table.SetCell(row, 3, tview.NewTableCell(n.Labels["topology.kubernetes.io/zone"]).SetTextColor(color))
 		v.table.SetCell(row, 4, tview.NewTableCell(n.Labels["karpenter.sh/capacity-type"]).SetTextColor(color))
 		v.table.SetCell(row, 5, tview.NewTableCell(n.Labels["karpenter.sh/nodepool"]).SetTextColor(color).SetExpansion(1))
+
+		matched := strings.Join(kubectl.MatchedLabels(n, v.activeFilters), ", ")
+		v.table.SetCell(row, 6, tview.NewTableCell(matched).SetTextColor(tcell.ColorSkyblue).SetExpansion(3))
 	}
 }
 
@@ -191,11 +201,57 @@ func (v *NodesView) showTopStats() {
 	}
 
 	v.app.tv.QueueUpdateDraw(func() {
-		content := fmt.Sprintf("[yellow]kubectl top node %s[-]\n\n%s\n\n[gray]Press Esc or q to close[-]", name, out)
+		content := fmt.Sprintf("[dodgerblue]kubectl top node %s[-]\n\n%s\n\n[gray]Press Esc or q to close[-]", name, out)
 		modal := newTextModal(v.app, content, "top-modal")
 		v.app.pages.AddPage("top-modal", modal, true, true)
 		v.app.tv.SetFocus(modal)
 	})
+}
+
+// startSession resolves the highlighted node's instance ID (preferring the
+// kubectl.InstanceIDLabel, falling back to an EC2 lookup) and launches an
+// interactive `aws ssm start-session` against it, suspending the TUI's
+// screen so the session gets the real terminal.
+func (v *NodesView) startSession() {
+	row, _ := v.table.GetSelection()
+	if row < 1 || row > len(v.filtered) {
+		v.app.setStatus("[red]Select a node first[-]")
+		return
+	}
+	if v.app.aws == nil {
+		v.app.setStatus("[red]aws CLI not found — install it and restart[-]")
+		return
+	}
+	n := v.filtered[row-1]
+
+	id, ok := n.Labels[kubectl.InstanceIDLabel]
+	if !ok || id == "" {
+		v.app.setStatus(fmt.Sprintf("[yellow]Resolving instance ID for %s...[-]", n.Name))
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		resolved, err := v.app.aws.ResolveInstanceIDs(ctx, []string{n.Name})
+		cancel()
+		if err != nil {
+			v.app.setStatus(fmt.Sprintf("[red]EC2 lookup failed: %v[-]", err))
+			return
+		}
+		id, ok = resolved[n.Name]
+		if !ok || id == "" {
+			v.app.setStatus(fmt.Sprintf("[red]Could not resolve instance ID for %s[-]", n.Name))
+			return
+		}
+	}
+
+	v.app.setStatus(fmt.Sprintf("[yellow]Starting SSM session to %s (%s)...[-]", n.Name, id))
+	resumed := v.app.tv.Suspend(func() {
+		if err := awsclient.StartSession(id); err != nil {
+			fmt.Printf("\nssm-me: session ended: %v\n", err)
+		}
+	})
+	if !resumed {
+		v.app.setStatus("[red]Could not suspend terminal for SSM session[-]")
+		return
+	}
+	v.app.setStatus(fmt.Sprintf("[green]Session with %s closed[-]", n.Name))
 }
 
 func nodeStatusColor(status string) tcell.Color {

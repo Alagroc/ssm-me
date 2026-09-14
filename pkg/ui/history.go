@@ -47,7 +47,7 @@ func newHistoryView(app *App) *HistoryView {
 
 	help := tview.NewTextView().
 		SetDynamicColors(true).
-		SetText(" [yellow]Enter[-]:view output  [yellow]r[-]:refresh  [yellow]d[-]:delete  [yellow]1-3[-]:tabs")
+		SetText(" [dodgerblue]Enter[-]:view output  [dodgerblue]r[-]:refresh  [dodgerblue]d[-]:delete  [dodgerblue]1-3[-]:tabs")
 
 	v.root = tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(v.table, 0, 1, true).
@@ -70,7 +70,7 @@ func (v *HistoryView) renderHeader() {
 	}
 	for i, h := range headers {
 		v.table.SetCell(0, i, tview.NewTableCell(h.title).
-			SetTextColor(tcell.ColorYellow).
+			SetTextColor(tcell.ColorDodgerBlue).
 			SetSelectable(false).
 			SetExpansion(h.exp))
 	}
@@ -114,7 +114,7 @@ func (v *HistoryView) renderRows() {
 		statusColor := executionStatusColor(e.Status)
 
 		v.table.SetCell(row, 0, tview.NewTableCell(ts).SetTextColor(tcell.ColorGray).SetSelectable(true))
-		v.table.SetCell(row, 1, tview.NewTableCell(cmdID).SetTextColor(tcell.ColorAqua).SetSelectable(true))
+		v.table.SetCell(row, 1, tview.NewTableCell(cmdID).SetTextColor(tcell.ColorDodgerBlue).SetSelectable(true))
 		v.table.SetCell(row, 2, tview.NewTableCell(cmd).SetTextColor(tcell.ColorWhite).SetExpansion(2).SetSelectable(true))
 		v.table.SetCell(row, 3, tview.NewTableCell(nodes).SetTextColor(tcell.ColorGray).SetExpansion(1).SetSelectable(true))
 		v.table.SetCell(row, 4, tview.NewTableCell(e.Status).SetTextColor(statusColor).SetSelectable(true))
@@ -128,7 +128,7 @@ func (v *HistoryView) showOutput(exec store.Execution) {
 		output = fmt.Sprintf("[Output not yet available]\n\nCommand ID: %s\nStatus: %s\n\nOutput is saved once the command completes.", exec.CommandID, exec.Status)
 	}
 
-	header := fmt.Sprintf("[yellow]Command:[-]  %s\n[yellow]ID:[-]       %s\n[yellow]Nodes:[-]    %s\n[yellow]Time:[-]     %s\n[yellow]Status:[-]   %s\n\n",
+	header := fmt.Sprintf("[dodgerblue]Command:[-]  %s\n[dodgerblue]ID:[-]       %s\n[dodgerblue]Nodes:[-]    %s\n[dodgerblue]Time:[-]     %s\n[dodgerblue]Status:[-]   %s\n\n",
 		exec.Command,
 		exec.CommandID,
 		strings.Join(exec.NodeNames, ", "),

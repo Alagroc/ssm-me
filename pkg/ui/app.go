@@ -31,13 +31,14 @@ type App struct {
 	historyView *HistoryView
 }
 
-func NewApp() *App {
+func NewApp(aws *awsclient.Client) *App {
 	a := &App{
 		tv:       tview.NewApplication(),
 		pages:    tview.NewPages(),
 		header:   tview.NewTextView().SetDynamicColors(true),
 		status:   tview.NewTextView().SetDynamicColors(true),
 		selected: make(map[string]bool),
+		aws:      aws,
 	}
 
 	a.nodesView = newNodesView(a)
@@ -57,7 +58,11 @@ func NewApp() *App {
 	a.tv.SetInputCapture(a.globalKeys)
 
 	a.renderHeader(pageNodes)
-	a.status.SetText(" [gray]Press r to load nodes[-]")
+	if a.aws == nil {
+		a.status.SetText(" [red]aws CLI not found — SSM features disabled[-]  [gray]Press r to load nodes[-]")
+	} else {
+		a.status.SetText(" [gray]Press r to load nodes[-]")
+	}
 	return a
 }
 
@@ -77,10 +82,10 @@ func (a *App) renderHeader(current string) {
 		{pageExecute, "2:Execute"},
 		{pageHistory, "3:History"},
 	}
-	h := " [::b]ssm-me[::-]  "
+	h := " [::b][dodgerblue]ssm-me[-][::-]  "
 	for _, t := range tabs {
 		if t.page == current {
-			h += fmt.Sprintf("[black:white] %s [-:-] ", t.label)
+			h += fmt.Sprintf("[black:dodgerblue] %s [-:-] ", t.label)
 		} else {
 			h += fmt.Sprintf("[white:-] %s [-:-] ", t.label)
 		}
@@ -93,7 +98,7 @@ func (a *App) renderHeader(current string) {
 		}
 	}
 	if sel > 0 {
-		h += fmt.Sprintf("  [yellow]%d selected[-]", sel)
+		h += fmt.Sprintf("  [dodgerblue]%d selected[-]", sel)
 	}
 	if a.context != "" {
 		h += fmt.Sprintf("  [gray]ctx: %s[-]", a.context)

@@ -37,7 +37,7 @@ func TestParseNodesEmpty(t *testing.T) {
 func TestFilterByCapacityType(t *testing.T) {
 	nodes := ParseNodes(sampleOutput)
 
-	onDemand := FilterNodes(nodes, map[string]string{"karpenter.sh/capacity-type": "on-demand"})
+	onDemand := FilterNodes(nodes, []Filter{{Key: "karpenter.sh/capacity-type", Value: "on-demand"}})
 	if len(onDemand) != 1 {
 		t.Errorf("expected 1 on-demand node, got %d", len(onDemand))
 	}
@@ -45,7 +45,7 @@ func TestFilterByCapacityType(t *testing.T) {
 		t.Errorf("wrong node: %s", onDemand[0].Name)
 	}
 
-	spot := FilterNodes(nodes, map[string]string{"karpenter.sh/capacity-type": "spot"})
+	spot := FilterNodes(nodes, []Filter{{Key: "karpenter.sh/capacity-type", Value: "spot"}})
 	if len(spot) != 1 {
 		t.Errorf("expected 1 spot node, got %d", len(spot))
 	}
@@ -54,9 +54,9 @@ func TestFilterByCapacityType(t *testing.T) {
 func TestFilterByMultipleLabels(t *testing.T) {
 	nodes := ParseNodes(sampleOutput)
 
-	filtered := FilterNodes(nodes, map[string]string{
-		"karpenter.sh/nodepool":      "default",
-		"karpenter.sh/capacity-type": "on-demand",
+	filtered := FilterNodes(nodes, []Filter{
+		{Key: "karpenter.sh/nodepool", Value: "default"},
+		{Key: "karpenter.sh/capacity-type", Value: "on-demand"},
 	})
 	if len(filtered) != 1 {
 		t.Errorf("expected 1, got %d", len(filtered))
@@ -65,7 +65,7 @@ func TestFilterByMultipleLabels(t *testing.T) {
 
 func TestFilterNoMatch(t *testing.T) {
 	nodes := ParseNodes(sampleOutput)
-	filtered := FilterNodes(nodes, map[string]string{"env": "production"})
+	filtered := FilterNodes(nodes, []Filter{{Key: "env", Value: "production"}})
 	if len(filtered) != 0 {
 		t.Errorf("expected 0, got %d", len(filtered))
 	}
@@ -73,19 +73,62 @@ func TestFilterNoMatch(t *testing.T) {
 
 func TestFilterEmpty(t *testing.T) {
 	nodes := ParseNodes(sampleOutput)
-	filtered := FilterNodes(nodes, map[string]string{})
+	filtered := FilterNodes(nodes, nil)
 	if len(filtered) != 2 {
 		t.Errorf("expected all nodes with empty filter, got %d", len(filtered))
 	}
 }
 
+func TestFilterByLabelKeySubstring(t *testing.T) {
+	nodes := ParseNodes(sampleOutput)
+
+	filtered := FilterNodes(nodes, []Filter{{Key: "topology.kubernetes.io"}})
+	if len(filtered) != 2 {
+		t.Errorf("expected 2 nodes matching key substring, got %d", len(filtered))
+	}
+
+	filtered = FilterNodes(nodes, []Filter{{Key: "karpenter.k8s.aws"}})
+	if len(filtered) != 1 || filtered[0].Name != "ip-10-0-142-45.us-east-1.compute.internal" {
+		t.Errorf("expected 1 matching node, got %v", filtered)
+	}
+}
+
+func TestMatchedLabels(t *testing.T) {
+	nodes := ParseNodes(sampleOutput)
+	n := nodes[0]
+
+	got := MatchedLabels(n, []Filter{{Key: "karpenter.sh/capacity-type", Value: "on-demand"}})
+	if len(got) != 1 || got[0] != "karpenter.sh/capacity-type=on-demand" {
+		t.Errorf("expected exact-match label, got %v", got)
+	}
+
+	got = MatchedLabels(n, []Filter{{Key: "topology.kubernetes.io"}})
+	want := []string{"topology.kubernetes.io/region=us-east-1", "topology.kubernetes.io/zone=us-east-1a"}
+	if len(got) != len(want) {
+		t.Fatalf("expected %v, got %v", want, got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("expected %v, got %v", want, got)
+			break
+		}
+	}
+}
+
 func TestParseFilters(t *testing.T) {
 	f := ParseFilters("karpenter.sh/capacity-type=on-demand,topology.kubernetes.io/zone=us-east-1a")
-	if f["karpenter.sh/capacity-type"] != "on-demand" {
+	if len(f) != 2 || f[0] != (Filter{Key: "karpenter.sh/capacity-type", Value: "on-demand"}) {
 		t.Errorf("capacity-type: %v", f)
 	}
-	if f["topology.kubernetes.io/zone"] != "us-east-1a" {
+	if f[1] != (Filter{Key: "topology.kubernetes.io/zone", Value: "us-east-1a"}) {
 		t.Errorf("zone: %v", f)
+	}
+}
+
+func TestParseFiltersKeyOnly(t *testing.T) {
+	f := ParseFilters("topology.gemini.com")
+	if len(f) != 1 || f[0] != (Filter{Key: "topology.gemini.com"}) {
+		t.Errorf("expected key-only filter, got %v", f)
 	}
 }
 
