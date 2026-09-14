@@ -61,7 +61,7 @@ go build -o ssm-me .
 | `e` | Go to Execute with current selection |
 | `s` | Open an interactive SSM session against the highlighted node |
 | `r` | Refresh nodes / execution history |
-| `f` or `/` | Focus filter input |
+| `/` | Focus filter input |
 | `t` | Show `kubectl top node` stats for selected row |
 | `Esc` | Clear selection (nodes) / back to nodes (execute) |
 | `Ctrl+E` | Send SSM command |

@@ -28,7 +28,7 @@ KEYBINDINGS
 
   Nodes view
     r              Refresh node list from kubectl
-    f  /           Focus filter input
+    /              Focus filter input
     Space / Enter  Select / deselect node
     e              Go to Execute with current selection
     s              Open interactive SSM session for highlighted node

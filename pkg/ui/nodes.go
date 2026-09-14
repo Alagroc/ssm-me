@@ -59,7 +59,7 @@ func newNodesView(app *App) *NodesView {
 		case event.Key() == tcell.KeyRune && event.Rune() == 'r':
 			go v.refresh()
 			return nil
-		case event.Key() == tcell.KeyRune && (event.Rune() == 'f' || event.Rune() == '/'):
+		case event.Key() == tcell.KeyRune && event.Rune() == '/':
 			app.tv.SetFocus(v.filter)
 			return nil
 		case event.Key() == tcell.KeyRune && event.Rune() == 'e':
@@ -97,7 +97,7 @@ func newNodesView(app *App) *NodesView {
 
 func (v *NodesView) updateHelp() {
 	v.help.SetText(" " + accentTag("Space/Enter") + ":select  " + accentTag("e") + ":execute  " +
-		accentTag("s") + ":ssm session  " + accentTag("r") + ":refresh  " + accentTag("f") + ":filter  " +
+		accentTag("s") + ":ssm session  " + accentTag("r") + ":refresh  " + accentTag("/") + ":filter  " +
 		accentTag("t") + ":top  " + accentTag("Esc") + ":clear selection  " + accentTag("Q") + ":quit")
 }
 
