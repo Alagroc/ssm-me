@@ -103,7 +103,7 @@ func (a *App) renderHeader(current string) {
 
 func (a *App) switchTo(page string) {
 	a.pages.SwitchToPage(page)
-	a.tv.QueueUpdateDraw(func() { a.renderHeader(page) })
+	a.renderHeader(page)
 	switch page {
 	case pageExecute:
 		a.executeView.update()

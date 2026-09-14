@@ -35,10 +35,10 @@ func newHistoryView(app *App) *HistoryView {
 		if event.Key() == tcell.KeyRune {
 			switch event.Rune() {
 			case 'r':
-				v.refresh()
+				go v.refresh()
 				return nil
 			case 'd':
-				v.deleteSelected()
+				go v.deleteSelected()
 				return nil
 			}
 		}

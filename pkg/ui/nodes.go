@@ -27,6 +27,7 @@ func newNodesView(app *App) *NodesView {
 		SetFieldWidth(50)
 	v.filter.SetDoneFunc(func(_ tcell.Key) {
 		v.applyFilter()
+		v.renderFiltered()
 		app.tv.SetFocus(v.table)
 	})
 
@@ -46,7 +47,7 @@ func newNodesView(app *App) *NodesView {
 		name := ref.(string)
 		app.selected[name] = !app.selected[name]
 		v.renderRows()
-		app.tv.QueueUpdateDraw(func() { app.renderHeader(pageNodes) })
+		app.renderHeader(pageNodes)
 	})
 
 	v.table.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
@@ -66,7 +67,7 @@ func newNodesView(app *App) *NodesView {
 		case event.Key() == tcell.KeyEsc:
 			app.selected = make(map[string]bool)
 			v.renderRows()
-			app.tv.QueueUpdateDraw(func() { app.renderHeader(pageNodes) })
+			app.renderHeader(pageNodes)
 			return nil
 		}
 		return event
@@ -108,16 +109,18 @@ func (v *NodesView) refresh() {
 	}
 	v.app.nodes = nodes
 	v.applyFilter()
+	v.app.tv.QueueUpdateDraw(v.renderFiltered)
 	v.app.setStatus(fmt.Sprintf("[green]%d nodes[-]", len(nodes)))
 }
 
 func (v *NodesView) applyFilter() {
 	filters := kubectl.ParseFilters(v.filter.GetText())
 	v.filtered = kubectl.FilterNodes(v.app.nodes, filters)
-	v.app.tv.QueueUpdateDraw(func() {
-		v.renderRows()
-		v.info.SetText(fmt.Sprintf(" [gray]%d/%d nodes[-]", len(v.filtered), len(v.app.nodes)))
-	})
+}
+
+func (v *NodesView) renderFiltered() {
+	v.renderRows()
+	v.info.SetText(fmt.Sprintf(" [gray]%d/%d nodes[-]", len(v.filtered), len(v.app.nodes)))
 }
 
 func (v *NodesView) renderHeader() {
