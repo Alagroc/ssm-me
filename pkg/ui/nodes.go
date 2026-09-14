@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -11,6 +12,22 @@ import (
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 )
+
+// sortColumns maps a sort shortcut key (rune) to the column it sorts, its
+// display label (for the status message), and the table column index whose
+// header gets the ▲/▼ indicator.
+var sortColumns = []struct {
+	key      rune
+	field    string
+	label    string
+	colIndex int
+}{
+	{'S', "status", "Status", 1},
+	{'I', "instance-type", "Instance Type", 2},
+	{'C', "capacity", "Capacity", 4},
+	{'N', "nodepool", "Nodepool", 5},
+	{'L', "labels", "Matched Labels", 6},
+}
 
 type NodesView struct {
 	app           *App
@@ -21,6 +38,9 @@ type NodesView struct {
 	help          *tview.TextView
 	filtered      []kubectl.Node
 	activeFilters []kubectl.Filter
+
+	sortField string // one of sortColumns[i].field, or "" for unsorted
+	sortDir   int    // 1 = ascending, -1 = descending (meaningless when sortField == "")
 }
 
 func newNodesView(app *App) *NodesView {
@@ -55,6 +75,14 @@ func newNodesView(app *App) *NodesView {
 	})
 
 	v.table.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		if event.Key() == tcell.KeyRune {
+			for _, sc := range sortColumns {
+				if event.Rune() == sc.key {
+					v.toggleSort(sc.field, sc.label)
+					return nil
+				}
+			}
+		}
 		switch {
 		case event.Key() == tcell.KeyRune && event.Rune() == 'r':
 			go v.refresh()
@@ -101,8 +129,8 @@ func newNodesView(app *App) *NodesView {
 func (v *NodesView) updateHelp() {
 	v.help.SetText(" " + accentTag("Space/Enter") + ":select  " + accentTag("e") + ":execute  " +
 		accentTag("s") + ":ssm session  " + accentTag("c") + ":context  " + accentTag("r") + ":refresh  " + accentTag("/") + ":filter  " +
-		accentTag("t") + ":top  " + accentTag("Esc") + ":clear selection  " + accentTag("◄►") + "/" + accentTag("1-4") + ":tabs  " +
-		accentTag("Shift+E") + ":results  " + accentTag("Q") + ":quit")
+		accentTag("t") + ":top  " + accentTag("S/I/C/N/L") + ":sort  " + accentTag("Esc") + ":clear selection  " +
+		accentTag("◄►") + "/" + accentTag("1-4") + ":tabs  " + accentTag("Shift+E") + ":results  " + accentTag("Q") + ":quit")
 }
 
 // applyTheme re-colors this view's primitives and re-renders its
@@ -154,21 +182,111 @@ func (v *NodesView) renderFiltered() {
 	v.info.SetText(" " + infoTag(fmt.Sprintf("%d/%d nodes", len(v.filtered), len(v.app.nodes))))
 }
 
+// toggleSort cycles the given column through ascending -> descending ->
+// unsorted. Called synchronously from the table's input capture (main
+// event-loop goroutine), so it updates primitives directly.
+func (v *NodesView) toggleSort(field, label string) {
+	switch {
+	case v.sortField != field:
+		v.sortField, v.sortDir = field, 1
+	case v.sortDir == 1:
+		v.sortDir = -1
+	default:
+		v.sortField, v.sortDir = "", 0
+	}
+
+	v.renderHeader()
+	v.renderRows()
+
+	switch v.sortDir {
+	case 1:
+		v.app.status.SetText(" " + infoTag(fmt.Sprintf("Sorted by %s (ascending)", label)))
+	case -1:
+		v.app.status.SetText(" " + infoTag(fmt.Sprintf("Sorted by %s (descending)", label)))
+	default:
+		v.app.status.SetText(" " + infoTag("Sort cleared"))
+	}
+}
+
+// sortKey returns the value n is compared on for the current sort field.
+func (v *NodesView) sortKey(n kubectl.Node) string {
+	switch v.sortField {
+	case "status":
+		return n.Status
+	case "instance-type":
+		return n.Labels["beta.kubernetes.io/instance-type"]
+	case "capacity":
+		return n.Labels["karpenter.sh/capacity-type"]
+	case "nodepool":
+		return n.Labels["karpenter.sh/nodepool"]
+	case "labels":
+		return strings.Join(kubectl.MatchedLabels(n, v.activeFilters), ", ")
+	}
+	return n.Name
+}
+
+// sortedNodes returns v.filtered in display order, sorted by the active
+// sort field if any — a copy, so v.filtered's own order (kubectl's
+// original order) is never disturbed.
+func (v *NodesView) sortedNodes() []kubectl.Node {
+	if v.sortField == "" {
+		return v.filtered
+	}
+	sorted := make([]kubectl.Node, len(v.filtered))
+	copy(sorted, v.filtered)
+	sort.SliceStable(sorted, func(i, j int) bool {
+		ki, kj := v.sortKey(sorted[i]), v.sortKey(sorted[j])
+		if v.sortDir < 0 {
+			return ki > kj
+		}
+		return ki < kj
+	})
+	return sorted
+}
+
+// nodeAt returns the node backing the table row at the given index (1-based,
+// row 0 is the header), looked up by its NAME reference rather than by
+// position — sortedNodes() can render rows in a different order than
+// v.filtered, so a positional index into v.filtered would pick the wrong
+// node once sorting is active.
+func (v *NodesView) nodeAt(row int) (kubectl.Node, bool) {
+	ref := v.table.GetCell(row, 0).GetReference()
+	if ref == nil {
+		return kubectl.Node{}, false
+	}
+	name := ref.(string)
+	for _, n := range v.filtered {
+		if n.Name == name {
+			return n, true
+		}
+	}
+	return kubectl.Node{}, false
+}
+
 func (v *NodesView) renderHeader() {
 	cols := []struct {
 		title string
 		exp   int
+		field string
 	}{
-		{"NAME", 3},
-		{"STATUS", 0},
-		{"INSTANCE TYPE", 0},
-		{"ZONE", 0},
-		{"CAPACITY", 0},
-		{"NODEPOOL", 1},
-		{"MATCHED LABELS", 3},
+		{"NAME", 3, ""},
+		{"STATUS", 0, "status"},
+		{"INSTANCE TYPE", 0, "instance-type"},
+		{"ZONE", 0, ""},
+		{"CAPACITY", 0, "capacity"},
+		{"NODEPOOL", 1, "nodepool"},
+		{"MATCHED LABELS", 3, "labels"},
 	}
 	for i, c := range cols {
-		cell := tview.NewTableCell(c.title).
+		title := c.title
+		if c.field != "" && c.field == v.sortField {
+			if v.sortDir < 0 {
+				title += " ▼"
+			} else {
+				title += " ▲"
+			}
+		}
+		cell := tview.NewTableCell(title).
 			SetTextColor(activeTheme.Accent).
 			SetSelectable(false).
 			SetExpansion(c.exp)
@@ -180,7 +298,7 @@ func (v *NodesView) renderRows() {
 	for v.table.GetRowCount() > 1 {
 		v.table.RemoveRow(1)
 	}
-	for i, n := range v.filtered {
+	for i, n := range v.sortedNodes() {
 		row := i + 1
 		color := tcell.ColorWhite
 		prefix := "  "
@@ -239,7 +357,8 @@ func (v *NodesView) showTopStats() {
 // screen so the session gets the real terminal.
 func (v *NodesView) startSession() {
 	row, _ := v.table.GetSelection()
-	if row < 1 || row > len(v.filtered) {
+	n, ok := v.nodeAt(row)
+	if !ok {
 		v.app.setStatus("[red]Select a node first[-]")
 		return
 	}
@@ -247,7 +366,6 @@ func (v *NodesView) startSession() {
 		v.app.setStatus("[red]aws CLI not found — install it and restart[-]")
 		return
 	}
-	n := v.filtered[row-1]
 
 	id, ok := n.Labels[kubectl.InstanceIDLabel]
 	if !ok || id == "" {

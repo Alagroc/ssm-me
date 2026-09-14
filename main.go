@@ -36,6 +36,11 @@ KEYBINDINGS
     s              Open interactive SSM session for highlighted node
     t              kubectl top node for highlighted row
     c              Switch kubectl context
+    S              Sort by status (again: descending, again: off)
+    I              Sort by instance type
+    C              Sort by capacity type
+    N              Sort by nodepool
+    L              Sort by matched labels
     Esc            Clear selection
 
   Execute view
