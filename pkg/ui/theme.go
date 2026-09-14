@@ -28,7 +28,7 @@ var themeOrder = []string{"default", "dark", "high-contrast"}
 var themes = map[string]Theme{
 	"default": {
 		Name: "default", Label: "Default (blue)",
-		Background: tcell.ColorBlue, Border: tcell.ColorAqua,
+		Background: tcell.ColorNavy, Border: tcell.ColorAqua,
 		Accent: tcell.ColorYellow, AccentTag: "yellow",
 		Info: tcell.ColorAqua, InfoTag: "aqua",
 	},
