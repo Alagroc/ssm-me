@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+
+	"github.com/Alagroc/ssm-me/pkg/debuglog"
 )
 
 // Client shells out to the AWS CLI (v2) for all SSM/EC2 operations, and to
@@ -27,11 +29,17 @@ func New() (*Client, error) {
 // runAWS runs `aws <args...> --output json` and unmarshals stdout into out
 // (if non-nil).
 func runAWS(ctx context.Context, out any, args ...string) error {
-	cmd := exec.CommandContext(ctx, "aws", append(args, "--output", "json")...)
+	full := append(args, "--output", "json")
+	cmd := exec.CommandContext(ctx, "aws", full...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
+	err := cmd.Run()
+
+	debuglog.Printf("aws %s\nstdout: %s\nstderr: %s\nerr: %v",
+		strings.Join(full, " "), stdout.String(), strings.TrimSpace(stderr.String()), err)
+
+	if err != nil {
 		return fmt.Errorf("aws %s: %w: %s", strings.Join(args, " "), err, strings.TrimSpace(stderr.String()))
 	}
 	if out == nil {

@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/Alagroc/ssm-me/pkg/awsclient"
+	"github.com/Alagroc/ssm-me/pkg/debuglog"
 	"github.com/Alagroc/ssm-me/pkg/kubectl"
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
@@ -71,6 +72,7 @@ func (a *App) Run() error {
 }
 
 func (a *App) setStatus(msg string) {
+	debuglog.Printf("status: %s", msg)
 	a.tv.QueueUpdateDraw(func() {
 		a.status.SetText(" " + msg)
 	})

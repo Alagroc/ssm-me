@@ -85,3 +85,11 @@ Executions are persisted in `/tmp/ssm-me/`:
 
 - `executions.json` — index of all runs (command ID, nodes, status, timestamp)
 - `<uuid>.txt` — stdout/stderr output per execution
+
+## Debugging
+
+Every run writes a log to `/tmp/<random>-ssm-me.log` (the path is printed to stderr on startup, before the TUI takes over the terminal). It records every `aws`/`kubectl` command run — full argument list, stdout, stderr, and error — plus every status-bar message, since the status bar is a single line and truncates long errors. Tail it in another terminal while reproducing an issue:
+
+```bash
+tail -f /tmp/*-ssm-me.log
+```

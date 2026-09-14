@@ -8,6 +8,8 @@ import (
 	"os/exec"
 	"strings"
 	"time"
+
+	"github.com/Alagroc/ssm-me/pkg/debuglog"
 )
 
 type CommandResult struct {
@@ -152,9 +154,12 @@ func OverallStatus(statuses map[string]string) string {
 // requires the session-manager-plugin to be installed alongside the AWS
 // CLI. Callers must suspend the TUI's screen before invoking this.
 func StartSession(instanceID string) error {
+	debuglog.Printf("aws ssm start-session --target %s", instanceID)
 	cmd := exec.Command("aws", "ssm", "start-session", "--target", instanceID)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	err := cmd.Run()
+	debuglog.Printf("aws ssm start-session --target %s: err: %v", instanceID, err)
+	return err
 }

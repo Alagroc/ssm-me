@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/Alagroc/ssm-me/pkg/awsclient"
+	"github.com/Alagroc/ssm-me/pkg/debuglog"
 	"github.com/Alagroc/ssm-me/pkg/store"
 	"github.com/Alagroc/ssm-me/pkg/ui"
 )
@@ -65,6 +66,13 @@ func main() {
 	if *help {
 		fmt.Fprint(os.Stdout, helpText)
 		os.Exit(0)
+	}
+
+	if logPath, err := debuglog.Init(); err != nil {
+		log.Printf("debug log: %v (continuing without it)", err)
+	} else {
+		fmt.Fprintf(os.Stderr, "ssm-me: debug log at %s\n", logPath)
+		debuglog.Printf("ssm-me starting")
 	}
 
 	if err := store.Init(); err != nil {

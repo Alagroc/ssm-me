@@ -2,11 +2,14 @@ package kubectl
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"fmt"
 	"os/exec"
 	"sort"
 	"strings"
+
+	"github.com/Alagroc/ssm-me/pkg/debuglog"
 )
 
 // InstanceIDLabel is the node label carrying the EC2/managed-instance ID
@@ -19,18 +22,37 @@ type Node struct {
 	Labels map[string]string
 }
 
-func GetNodes(ctx context.Context) ([]Node, error) {
-	out, err := exec.CommandContext(ctx, "kubectl", "get", "nodes", "--show-labels", "--no-headers").Output()
+// runKubectl runs kubectl and logs the full command line, stdout, and
+// stderr to the debug log, since errors surfaced in the TUI status bar get
+// truncated.
+func runKubectl(ctx context.Context, args ...string) ([]byte, error) {
+	cmd := exec.CommandContext(ctx, "kubectl", args...)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+
+	debuglog.Printf("kubectl %s\nstdout: %s\nstderr: %s\nerr: %v",
+		strings.Join(args, " "), stdout.String(), strings.TrimSpace(stderr.String()), err)
+
 	if err != nil {
-		return nil, fmt.Errorf("kubectl get nodes: %w", err)
+		return nil, fmt.Errorf("kubectl %s: %w: %s", strings.Join(args, " "), err, strings.TrimSpace(stderr.String()))
+	}
+	return stdout.Bytes(), nil
+}
+
+func GetNodes(ctx context.Context) ([]Node, error) {
+	out, err := runKubectl(ctx, "get", "nodes", "--show-labels", "--no-headers")
+	if err != nil {
+		return nil, err
 	}
 	return ParseNodes(string(out)), nil
 }
 
 func GetCurrentContext(ctx context.Context) (string, error) {
-	out, err := exec.CommandContext(ctx, "kubectl", "config", "current-context").Output()
+	out, err := runKubectl(ctx, "config", "current-context")
 	if err != nil {
-		return "", fmt.Errorf("kubectl context: %w", err)
+		return "", err
 	}
 	return strings.TrimSpace(string(out)), nil
 }
@@ -160,9 +182,9 @@ func ParseFilters(s string) []Filter {
 }
 
 func TopNode(name string) (string, error) {
-	out, err := exec.Command("kubectl", "top", "node", name).Output()
+	out, err := runKubectl(context.Background(), "top", "node", name)
 	if err != nil {
-		return "", fmt.Errorf("kubectl top node %s: %w", name, err)
+		return "", err
 	}
 	return string(out), nil
 }
