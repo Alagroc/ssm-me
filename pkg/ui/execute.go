@@ -66,7 +66,8 @@ func newExecuteView(app *App) *ExecuteView {
 
 func (v *ExecuteView) updateHelp() {
 	v.help.SetText(" " + accentTag("Ctrl+E") + ":execute  " + accentTag("Tab") + ":next field  " +
-		accentTag("Esc") + ":back to nodes  " + accentTag("1-3") + ":tabs")
+		accentTag("Esc") + ":back to nodes  " + accentTag("◄►") + "/" + accentTag("1-4") + ":tabs  " +
+		accentTag("Shift+E") + ":results")
 }
 
 // applyTheme re-colors this view's primitives after a live theme switch.

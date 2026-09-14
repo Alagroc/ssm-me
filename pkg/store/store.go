@@ -84,8 +84,9 @@ func write(execs []Execution) error {
 // Settings holds user-configurable preferences, persisted alongside
 // execution history so they survive restarts.
 type Settings struct {
-	Theme    string `json:"theme"`
-	DebugLog bool   `json:"debug_log"`
+	Theme       string `json:"theme"`
+	DebugLog    bool   `json:"debug_log"`
+	AutoRefresh bool   `json:"auto_refresh"`
 }
 
 func settingsPath() string {

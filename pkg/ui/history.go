@@ -59,7 +59,7 @@ func newHistoryView(app *App) *HistoryView {
 
 func (v *HistoryView) updateHelp() {
 	v.help.SetText(" " + accentTag("Enter") + ":view output  " + accentTag("r") + ":refresh  " +
-		accentTag("d") + ":delete  " + accentTag("1-3") + ":tabs")
+		accentTag("d") + ":delete  " + accentTag("◄►") + "/" + accentTag("1-4") + ":tabs")
 }
 
 // applyTheme re-colors this view's primitives and re-renders its

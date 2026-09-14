@@ -35,8 +35,8 @@ type App struct {
 	settingsView *SettingsView
 }
 
-func NewApp(aws *awsclient.Client, initialTheme string) *App {
-	setTheme(initialTheme)
+func NewApp(aws *awsclient.Client, settings store.Settings) *App {
+	setTheme(settings.Theme)
 
 	a := &App{
 		tv:       tview.NewApplication(),
@@ -71,6 +71,11 @@ func NewApp(aws *awsclient.Client, initialTheme string) *App {
 	} else {
 		a.status.SetText(" " + infoTag("Press r to load nodes"))
 	}
+
+	if settings.AutoRefresh {
+		go a.nodesView.refresh()
+	}
+
 	return a
 }
 
@@ -158,7 +163,12 @@ func (a *App) applyThemeLive(name string) {
 
 	a.status.SetText(" " + infoTag(fmt.Sprintf("Theme set to %s", activeTheme.Label)))
 
-	if err := store.SaveSettings(store.Settings{Theme: name, DebugLog: debuglog.Enabled()}); err != nil {
+	settings, err := store.LoadSettings()
+	if err != nil {
+		settings = store.Settings{}
+	}
+	settings.Theme = name
+	if err := store.SaveSettings(settings); err != nil {
 		debuglog.Printf("save settings: %v", err)
 	}
 }
@@ -187,7 +197,65 @@ func (a *App) toggleDebugLog(enable bool) {
 	}
 }
 
+// toggleAutoRefresh enables/disables loading nodes automatically on
+// startup and persists the choice. Same main-goroutine-only constraint as
+// applyThemeLive.
+func (a *App) toggleAutoRefresh(enable bool) {
+	if enable {
+		a.status.SetText(" " + infoTag("Nodes will auto-refresh on startup"))
+	} else {
+		a.status.SetText(" " + infoTag("Auto-refresh on startup disabled"))
+	}
+
+	settings, err := store.LoadSettings()
+	if err != nil {
+		settings = store.Settings{Theme: activeTheme.Name}
+	}
+	settings.AutoRefresh = enable
+	if err := store.SaveSettings(settings); err != nil {
+		debuglog.Printf("save settings: %v", err)
+	}
+}
+
+var pageOrder = []string{pageNodes, pageExecute, pageHistory, pageSettings}
+
+func (a *App) cycleTab(delta int) {
+	current, _ := a.pages.GetFrontPage()
+	idx := 0
+	for i, p := range pageOrder {
+		if p == current {
+			idx = i
+			break
+		}
+	}
+	idx = (idx + delta + len(pageOrder)) % len(pageOrder)
+	a.switchTo(pageOrder[idx])
+}
+
+// isTextInputFocused reports whether the current focus is a free-text
+// widget (filter field, command text area, comment field). Global
+// single-key shortcuts (tab digits, Q, Left/Right, Shift+E) must not fire
+// while one of these is focused — otherwise you couldn't type a digit, a
+// capital Q, or arrow through a line of text without it hijacking
+// navigation instead.
+func (a *App) isTextInputFocused() bool {
+	focus := a.tv.GetFocus()
+	return focus == a.nodesView.filter || focus == a.executeView.cmd || focus == a.executeView.comment
+}
+
 func (a *App) globalKeys(event *tcell.EventKey) *tcell.EventKey {
+	if a.isTextInputFocused() {
+		return event
+	}
+
+	switch event.Key() {
+	case tcell.KeyRight:
+		a.cycleTab(1)
+		return nil
+	case tcell.KeyLeft:
+		a.cycleTab(-1)
+		return nil
+	}
 	if event.Key() == tcell.KeyRune {
 		switch event.Rune() {
 		case '1':
@@ -201,6 +269,9 @@ func (a *App) globalKeys(event *tcell.EventKey) *tcell.EventKey {
 			return nil
 		case '4':
 			a.switchTo(pageSettings)
+			return nil
+		case 'E':
+			a.switchTo(pageHistory)
 			return nil
 		case 'Q':
 			a.tv.Stop()

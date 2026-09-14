@@ -24,6 +24,8 @@ KEYBINDINGS
     2              Execute view
     3              History view
     4              Settings view
+    Left / Right   Cycle tabs
+    Shift+E        Jump to History (execution results)
     Q              Quit
 
   Nodes view
@@ -69,8 +71,8 @@ DEBUG LOG
   on startup, or shown in the status bar when enabled from Settings).
 
 SETTINGS
-  Color scheme and debug log preferences are persisted to
-  /tmp/ssm-me/settings.json and reloaded on the next run.
+  Color scheme, debug log, and auto-refresh-on-startup preferences are
+  persisted to /tmp/ssm-me/settings.json and reloaded on the next run.
 `
 
 func main() {
@@ -108,7 +110,7 @@ func main() {
 		log.Printf("aws: %v — SSM features disabled until this is fixed", err)
 	}
 
-	app := ui.NewApp(awsClient, settings.Theme)
+	app := ui.NewApp(awsClient, settings)
 	if err := app.Run(); err != nil {
 		log.Fatalf("run: %v", err)
 	}

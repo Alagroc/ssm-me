@@ -57,6 +57,8 @@ go build -o ssm-me .
 | `2` | Execute view |
 | `3` | History view |
 | `4` | Settings view |
+| `Left` / `Right` | Cycle tabs |
+| `Shift+E` | Jump to History (execution results) |
 | `Space` / `Enter` | Select/deselect node (nodes view) |
 | `e` | Go to Execute with current selection |
 | `s` | Open an interactive SSM session against the highlighted node |
@@ -87,7 +89,9 @@ Executions are persisted in `/tmp/ssm-me/`:
 
 - `executions.json` — index of all runs (command ID, nodes, status, timestamp)
 - `<uuid>.txt` — stdout/stderr output per execution
-- `settings.json` — color scheme and debug log preference
+- `settings.json` — color scheme, debug log, and auto-refresh preferences
+
+Note: `/tmp` is typically cleared on reboot, so these are not stored in a persistent user-profile location — expect settings and history to reset after a restart of the machine, not just the app.
 
 ## Settings
 
@@ -95,8 +99,9 @@ Open the Settings view (`4`) to change:
 
 - **Color scheme** — Default (blue, classic ncurses "blue screen" look à la iptraf/Midnight Commander), Dark, or High Contrast. Applies immediately, no restart.
 - **Enable debug log** — see below. Also applies immediately.
+- **Auto-refresh nodes on startup** — skip pressing `r` after launch; the node list loads automatically.
 
-Both choices are persisted to `/tmp/ssm-me/settings.json` and reloaded on the next run.
+All choices are persisted to `/tmp/ssm-me/settings.json` and reloaded on the next run.
 
 ## Debugging
 

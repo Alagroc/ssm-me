@@ -2,6 +2,7 @@ package ui
 
 import (
 	"github.com/Alagroc/ssm-me/pkg/debuglog"
+	"github.com/Alagroc/ssm-me/pkg/store"
 	"github.com/rivo/tview"
 )
 
@@ -41,6 +42,11 @@ func newSettingsView(app *App) *SettingsView {
 		app.toggleDebugLog(checked)
 	})
 
+	settings, _ := store.LoadSettings()
+	v.form.AddCheckbox("Auto-refresh nodes on startup", settings.AutoRefresh, func(checked bool) {
+		app.toggleAutoRefresh(checked)
+	})
+
 	v.help = tview.NewTextView().SetDynamicColors(true)
 
 	v.root = tview.NewFlex().SetDirection(tview.FlexRow).
@@ -53,7 +59,8 @@ func newSettingsView(app *App) *SettingsView {
 }
 
 func (v *SettingsView) updateHelp() {
-	v.help.SetText(" " + accentTag("Tab/Down") + ":next field  " + accentTag("Enter") + ":change  " + accentTag("1-4") + ":tabs")
+	v.help.SetText(" " + accentTag("Tab/Down") + ":next field  " + accentTag("Enter") + ":change  " +
+		accentTag("◄►") + "/" + accentTag("1-4") + ":tabs")
 }
 
 // applyTheme re-colors this view's primitives after a live theme switch.

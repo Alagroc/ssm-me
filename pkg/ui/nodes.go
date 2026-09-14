@@ -98,7 +98,8 @@ func newNodesView(app *App) *NodesView {
 func (v *NodesView) updateHelp() {
 	v.help.SetText(" " + accentTag("Space/Enter") + ":select  " + accentTag("e") + ":execute  " +
 		accentTag("s") + ":ssm session  " + accentTag("r") + ":refresh  " + accentTag("/") + ":filter  " +
-		accentTag("t") + ":top  " + accentTag("Esc") + ":clear selection  " + accentTag("Q") + ":quit")
+		accentTag("t") + ":top  " + accentTag("Esc") + ":clear selection  " + accentTag("◄►") + "/" + accentTag("1-4") + ":tabs  " +
+		accentTag("Shift+E") + ":results  " + accentTag("Q") + ":quit")
 }
 
 // applyTheme re-colors this view's primitives and re-renders its
