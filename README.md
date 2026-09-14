@@ -68,6 +68,7 @@ go build -o ssm-me .
 | `Esc` | Clear selection (nodes) / back to nodes (execute) |
 | `Ctrl+E` | Send SSM command |
 | `d` | Delete execution from history |
+| `Shift+D` | Delete ALL executions from history (confirms first) |
 | `q` / `Esc` | Close modal |
 | `Q` | Quit |
 

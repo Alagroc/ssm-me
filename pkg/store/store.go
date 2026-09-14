@@ -73,6 +73,21 @@ func Delete(id string) error {
 	return nil
 }
 
+// DeleteAll removes every execution from the index and its saved output.
+func DeleteAll() error {
+	execs, err := Load()
+	if err != nil {
+		return err
+	}
+	if err := write(nil); err != nil {
+		return err
+	}
+	for _, e := range execs {
+		_ = os.Remove(OutputPath(e.ID))
+	}
+	return nil
+}
+
 func write(execs []Execution) error {
 	data, err := json.MarshalIndent(execs, "", "  ")
 	if err != nil {

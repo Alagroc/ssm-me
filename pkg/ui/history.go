@@ -41,6 +41,9 @@ func newHistoryView(app *App) *HistoryView {
 			case 'd':
 				go v.deleteSelected()
 				return nil
+			case 'D':
+				v.confirmDeleteAll()
+				return nil
 			}
 		}
 		return event
@@ -59,7 +62,8 @@ func newHistoryView(app *App) *HistoryView {
 
 func (v *HistoryView) updateHelp() {
 	v.help.SetText(" " + accentTag("Enter") + ":view output  " + accentTag("r") + ":refresh  " +
-		accentTag("d") + ":delete  " + accentTag("◄►") + "/" + accentTag("1-4") + ":tabs")
+		accentTag("d") + ":delete  " + accentTag("Shift+D") + ":clear all  " +
+		accentTag("◄►") + "/" + accentTag("1-4") + ":tabs")
 }
 
 // applyTheme re-colors this view's primitives and re-renders its
@@ -172,6 +176,41 @@ func (v *HistoryView) deleteSelected() {
 	}
 	v.app.setStatus(fmt.Sprintf("[green]Deleted %s[-]", truncate(exec.CommandID, 14)))
 	v.refresh()
+}
+
+// confirmDeleteAll shows a Yes/No modal before wiping every execution —
+// unlike a single delete, this can't be undone. Called synchronously from
+// the table's input capture (main event-loop goroutine), so it's safe to
+// touch primitives directly; deleteAll (invoked from the modal's own
+// callback, also main-goroutine) does the same.
+func (v *HistoryView) confirmDeleteAll() {
+	if len(v.execs) == 0 {
+		v.app.status.SetText(" " + infoTag("No executions to delete"))
+		return
+	}
+
+	modal := tview.NewModal().
+		SetText(fmt.Sprintf("Delete all %d executions? This cannot be undone.", len(v.execs))).
+		AddButtons([]string{"Delete All", "Cancel"}).
+		SetDoneFunc(func(_ int, buttonLabel string) {
+			v.app.pages.RemovePage("confirm-delete-all")
+			if buttonLabel == "Delete All" {
+				v.deleteAll()
+			}
+			v.app.tv.SetFocus(v.table)
+		})
+
+	v.app.pages.AddPage("confirm-delete-all", modal, true, true)
+	v.app.tv.SetFocus(modal)
+}
+
+func (v *HistoryView) deleteAll() {
+	if err := store.DeleteAll(); err != nil {
+		v.app.status.SetText(" [red]Delete all failed: " + err.Error() + "[-]")
+		return
+	}
+	v.execs = nil
+	v.renderRows()
 }
 
 func executionStatusColor(status string) tcell.Color {

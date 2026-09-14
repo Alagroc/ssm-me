@@ -46,6 +46,7 @@ KEYBINDINGS
     Enter          View command output
     r              Refresh execution list
     d              Delete selected execution
+    Shift+D        Delete ALL executions (confirms first)
     Esc / q        Close output modal
 
   Settings view
