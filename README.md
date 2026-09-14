@@ -12,7 +12,7 @@ A terminal UI (TUI) for managing AWS SSM commands against Kubernetes nodes.
 - **Execute view** — send shell commands via AWS SSM (`AWS-RunShellScript`) to selected nodes
 - **Execution history** — all runs are stored in `/tmp/ssm-me/`; view stdout/stderr per execution
 - **Node stats** — `kubectl top node` output shown inline
-- **Settings view** — switch color scheme (Default/Dark/High Contrast) and toggle the debug log live, no restart needed; choices persist to `/tmp/ssm-me/settings.json`
+- **Settings view** — switch color scheme (Default/Dark/High Contrast) and toggle the debug log live, no restart needed; choices persist to `~/.ssm-me/settings.json`
 
 ## Requirements
 
@@ -85,13 +85,12 @@ The last example matches every node carrying any `topology.gemini.com/*` label, 
 
 ## Storage
 
-Executions are persisted in `/tmp/ssm-me/`:
+Execution history is persisted in `/tmp/ssm-me/`:
 
 - `executions.json` — index of all runs (command ID, nodes, status, timestamp)
 - `<uuid>.txt` — stdout/stderr output per execution
-- `settings.json` — color scheme, debug log, and auto-refresh preferences
 
-Note: `/tmp` is typically cleared on reboot, so these are not stored in a persistent user-profile location — expect settings and history to reset after a restart of the machine, not just the app.
+Note: `/tmp` is typically cleared on reboot, so expect execution history to reset after a restart of the machine, not just the app.
 
 ## Settings
 
@@ -101,7 +100,7 @@ Open the Settings view (`4`) to change:
 - **Enable debug log** — see below. Also applies immediately.
 - **Auto-refresh nodes on startup** — skip pressing `r` after launch; the node list loads automatically.
 
-All choices are persisted to `/tmp/ssm-me/settings.json` and reloaded on the next run.
+Unlike execution history, these preferences are meant to survive a reboot, so they're persisted separately to `~/.ssm-me/settings.json` and reloaded on the next run.
 
 ## Debugging
 

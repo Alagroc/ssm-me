@@ -72,7 +72,8 @@ DEBUG LOG
 
 SETTINGS
   Color scheme, debug log, and auto-refresh-on-startup preferences are
-  persisted to /tmp/ssm-me/settings.json and reloaded on the next run.
+  persisted to ~/.ssm-me/settings.json (survives reboots, unlike the
+  /tmp execution history) and reloaded on the next run.
 `
 
 func main() {

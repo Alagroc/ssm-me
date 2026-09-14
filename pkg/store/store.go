@@ -81,20 +81,37 @@ func write(execs []Execution) error {
 	return os.WriteFile(indexPath(), data, 0644)
 }
 
-// Settings holds user-configurable preferences, persisted alongside
-// execution history so they survive restarts.
+// Settings holds user-configurable preferences. Unlike execution history
+// (ephemeral, in /tmp), these are meant to survive a reboot, so they live
+// under the user's home directory instead.
 type Settings struct {
 	Theme       string `json:"theme"`
 	DebugLog    bool   `json:"debug_log"`
 	AutoRefresh bool   `json:"auto_refresh"`
 }
 
-func settingsPath() string {
-	return filepath.Join(Dir, "settings.json")
+func settingsDir() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, ".ssm-me"), nil
+}
+
+func settingsPath() (string, error) {
+	dir, err := settingsDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, "settings.json"), nil
 }
 
 func LoadSettings() (Settings, error) {
-	data, err := os.ReadFile(settingsPath())
+	path, err := settingsPath()
+	if err != nil {
+		return Settings{}, err
+	}
+	data, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
 		return Settings{Theme: "default"}, nil
 	}
@@ -112,11 +129,22 @@ func LoadSettings() (Settings, error) {
 }
 
 func SaveSettings(s Settings) error {
+	dir, err := settingsDir()
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
 	data, err := json.MarshalIndent(s, "", "  ")
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(settingsPath(), data, 0644)
+	path, err := settingsPath()
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, data, 0644)
 }
 
 func OutputPath(id string) string {
