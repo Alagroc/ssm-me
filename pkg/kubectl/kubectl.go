@@ -117,7 +117,8 @@ func parseLabels(s string) map[string]string {
 
 // Filter matches nodes against a label. A Filter with a non-empty Value
 // requires an exact key=value match; a Filter with an empty Value matches
-// any node with a label key containing Key as a substring, so filtering by
+// any label whose key or value contains Key as a substring, so "metal"
+// matches "node.kubernetes.io/instance-type=m5.metal" and
 // "topology.gemini.com" matches every "topology.gemini.com/*" label.
 type Filter struct {
 	Key   string
@@ -156,7 +157,7 @@ func MatchingLabels(n Node, f Filter) map[string]string {
 		return matched
 	}
 	for k, v := range n.Labels {
-		if strings.Contains(k, f.Key) {
+		if strings.Contains(k, f.Key) || strings.Contains(v, f.Key) {
 			matched[k] = v
 		}
 	}
@@ -172,14 +173,19 @@ func MatchedLabels(n Node, filters []Filter) []string {
 			matched[k] = v
 		}
 	}
-	keys := make([]string, 0, len(matched))
-	for k := range matched {
+	return FormatLabels(matched)
+}
+
+// FormatLabels returns labels as "key=value" strings sorted by key.
+func FormatLabels(labels map[string]string) []string {
+	keys := make([]string, 0, len(labels))
+	for k := range labels {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
 	pairs := make([]string, len(keys))
 	for i, k := range keys {
-		pairs[i] = k + "=" + matched[k]
+		pairs[i] = k + "=" + labels[k]
 	}
 	return pairs
 }
@@ -204,8 +210,8 @@ func ParseFilters(s string) []Filter {
 	return filters
 }
 
-func TopNode(name string) (string, error) {
-	out, err := runKubectl(context.Background(), "top", "node", name)
+func TopNode(ctx context.Context, name string) (string, error) {
+	out, err := runKubectl(ctx, "top", "node", name)
 	if err != nil {
 		return "", err
 	}

@@ -6,9 +6,9 @@ A terminal UI (TUI) for managing AWS SSM commands against Kubernetes nodes.
 
 - **Nodes view** — lists nodes from the current `kubectl` context with their labels (instance type, zone, capacity type, nodepool)
 - **Context switching** — press `c` to pick a different `kubectl` context from your kubeconfig and reload nodes against it, no restart needed
-- **Label filtering** — filter nodes by `key=value` pairs, or by a bare `key` substring to match any label whose *key* contains it (e.g. `topology.gemini.com` matches every `topology.gemini.com/*` label)
-- **Matched labels column** — when a filter is active, the specific label(s) that matched are shown per row
-- **Sorting** — sort the node list by status, instance type, capacity, nodepool, or matched labels; the sorted column shows a ▲/▼ in its header
+- **Label filtering** — filter nodes by `key=value` pairs, or by a bare substring to match any label whose key *or value* contains it (e.g. `metal` matches `m5.metal` instance types, `topology.gemini.com` matches every `topology.gemini.com/*` label)
+- **Labels column** — shows the node's labels (as `kubectl get nodes --show-labels` does), truncated to the available width; when a filter is active, only the label(s) that matched are shown. Press `l` for the full label list of the highlighted node in a scrollable popup
+- **Sorting** — sort the node list by status, instance type, capacity, nodepool, or labels; the sorted column shows a ▲/▼ in its header
 - **Multi-select** — select one or more nodes for targeted SSM execution
 - **Interactive SSM session** — press `s` on a node to open a live `aws ssm start-session` shell against it, right from the TUI
 - **Execute view** — send shell commands via AWS SSM (`AWS-RunShellScript`) to selected nodes
@@ -67,8 +67,9 @@ go build -o ssm-me .
 | `r` | Refresh nodes / execution history |
 | `/` | Focus filter input |
 | `t` | Show `kubectl top node` stats for selected row |
+| `l` | Show all labels of the highlighted node |
 | `c` | Switch `kubectl` context |
-| `S` / `I` / `C` / `N` / `L` | Sort by status / instance type / capacity / nodepool / matched labels (press again to reverse, again to clear) |
+| `S` / `I` / `C` / `N` / `L` | Sort by status / instance type / capacity / nodepool / labels (press again to reverse, again to clear) |
 | `Esc` | Clear selection (nodes) / back to nodes (execute) |
 | `Ctrl+E` | Send SSM command |
 | `d` | Delete execution from history |
@@ -78,15 +79,16 @@ go build -o ssm-me .
 
 ### Filtering nodes
 
-In the filter box, enter comma-separated tokens. Each token is either an exact `key=value` label match, or a bare `key` substring that matches any label whose key contains it:
+In the filter box, enter comma-separated tokens. Each token is either an exact `key=value` label match, or a bare substring that matches any label whose key or value contains it:
 
 ```
 karpenter.sh/capacity-type=spot
 karpenter.sh/capacity-type=on-demand,topology.kubernetes.io/zone=us-east-1a
 topology.gemini.com
+metal
 ```
 
-The last example matches every node carrying any `topology.gemini.com/*` label, and the matching label(s) are shown in the MATCHED LABELS column.
+`topology.gemini.com` matches every node carrying any `topology.gemini.com/*` label, and `metal` matches every node with a label value such as `m5.metal`. While a filter is active the LABELS column shows only the matching label(s).
 
 ## Storage
 

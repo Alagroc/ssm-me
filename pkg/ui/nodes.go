@@ -26,7 +26,7 @@ var sortColumns = []struct {
 	{'I', "instance-type", "Instance Type", 2},
 	{'C', "capacity", "Capacity", 4},
 	{'N', "nodepool", "Nodepool", 5},
-	{'L', "labels", "Matched Labels", 6},
+	{'L', "labels", "Labels", 6},
 }
 
 type NodesView struct {
@@ -47,7 +47,7 @@ func newNodesView(app *App) *NodesView {
 	v := &NodesView{app: app}
 
 	v.filter = tview.NewInputField().
-		SetLabel("Filter (key=val,...): ").
+		SetLabel("Filter (key=val or text,...): ").
 		SetFieldWidth(50)
 	v.filter.SetDoneFunc(func(_ tcell.Key) {
 		v.applyFilter()
@@ -96,6 +96,9 @@ func newNodesView(app *App) *NodesView {
 		case event.Key() == tcell.KeyRune && event.Rune() == 't':
 			go v.showTopStats()
 			return nil
+		case event.Key() == tcell.KeyRune && event.Rune() == 'l':
+			v.showLabels()
+			return nil
 		case event.Key() == tcell.KeyRune && event.Rune() == 's':
 			go v.startSession()
 			return nil
@@ -129,7 +132,7 @@ func newNodesView(app *App) *NodesView {
 func (v *NodesView) updateHelp() {
 	v.help.SetText(" " + accentTag("Space/Enter") + ":select  " + accentTag("e") + ":execute  " +
 		accentTag("s") + ":ssm session  " + accentTag("c") + ":context  " + accentTag("r") + ":refresh  " + accentTag("/") + ":filter  " +
-		accentTag("t") + ":top  " + accentTag("S/I/C/N/L") + ":sort  " + accentTag("Esc") + ":clear selection  " +
+		accentTag("t") + ":top  " + accentTag("l") + ":labels  " + accentTag("S/I/C/N/L") + ":sort  " + accentTag("Esc") + ":clear selection  " +
 		accentTag("◄►") + "/" + accentTag("1-4") + ":tabs  " + accentTag("Shift+E") + ":results  " + accentTag("Q") + ":quit")
 }
 
@@ -220,9 +223,18 @@ func (v *NodesView) sortKey(n kubectl.Node) string {
 	case "nodepool":
 		return n.Labels["karpenter.sh/nodepool"]
 	case "labels":
-		return strings.Join(kubectl.MatchedLabels(n, v.activeFilters), ", ")
+		return v.labelsText(n)
 	}
 	return n.Name
+}
+
+// labelsText returns what the LABELS column shows for n: every label when
+// no filter is active, otherwise only the label(s) that matched the filter.
+func (v *NodesView) labelsText(n kubectl.Node) string {
+	if len(v.activeFilters) == 0 {
+		return strings.Join(kubectl.FormatLabels(n.Labels), ", ")
+	}
+	return strings.Join(kubectl.MatchedLabels(n, v.activeFilters), ", ")
 }
 
 // sortedNodes returns v.filtered in display order, sorted by the active
@@ -234,8 +246,13 @@ func (v *NodesView) sortedNodes() []kubectl.Node {
 	}
 	sorted := make([]kubectl.Node, len(v.filtered))
 	copy(sorted, v.filtered)
+	// Computed once per node: the labels key is costly to build.
+	keys := make(map[string]string, len(sorted))
+	for _, n := range sorted {
+		keys[n.Name] = v.sortKey(n)
+	}
 	sort.SliceStable(sorted, func(i, j int) bool {
-		ki, kj := v.sortKey(sorted[i]), v.sortKey(sorted[j])
+		ki, kj := keys[sorted[i].Name], keys[sorted[j].Name]
 		if v.sortDir < 0 {
 			return ki > kj
 		}
@@ -275,7 +292,7 @@ func (v *NodesView) renderHeader() {
 		{"ZONE", 0, ""},
 		{"CAPACITY", 0, "capacity"},
 		{"NODEPOOL", 1, "nodepool"},
-		{"MATCHED LABELS", 3, "labels"},
+		{"LABELS", 3, "labels"},
 	}
 	for i, c := range cols {
 		title := c.title
@@ -319,8 +336,7 @@ func (v *NodesView) renderRows() {
 		v.table.SetCell(row, 4, tview.NewTableCell(n.Labels["karpenter.sh/capacity-type"]).SetTextColor(color))
 		v.table.SetCell(row, 5, tview.NewTableCell(n.Labels["karpenter.sh/nodepool"]).SetTextColor(color).SetExpansion(1))
 
-		matched := strings.Join(kubectl.MatchedLabels(n, v.activeFilters), ", ")
-		v.table.SetCell(row, 6, tview.NewTableCell(matched).SetTextColor(activeTheme.Info).SetExpansion(3))
+		v.table.SetCell(row, 6, tview.NewTableCell(v.labelsText(n)).SetTextColor(activeTheme.Info).SetExpansion(3))
 	}
 }
 
@@ -337,7 +353,9 @@ func (v *NodesView) showTopStats() {
 	name := ref.(string)
 
 	v.app.setStatus(fmt.Sprintf("[yellow]kubectl top node %s...[-]", name))
-	out, err := kubectl.TopNode(name)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	out, err := kubectl.TopNode(ctx, name)
 	if err != nil {
 		v.app.setStatus(fmt.Sprintf("[red]%v[-]", err))
 		return
@@ -349,6 +367,23 @@ func (v *NodesView) showTopStats() {
 		v.app.pages.AddPage("top-modal", modal, true, true)
 		v.app.tv.SetFocus(modal)
 	})
+}
+
+// showLabels shows every label on the highlighted node, one per line.
+// Called synchronously from the table's input capture (main event-loop
+// goroutine), so it updates primitives directly.
+func (v *NodesView) showLabels() {
+	row, _ := v.table.GetSelection()
+	n, ok := v.nodeAt(row)
+	if !ok {
+		v.app.status.SetText(" [red]Select a node first[-]")
+		return
+	}
+	content := fmt.Sprintf("%s\n\n%s\n\n%s", accentTag("Labels for "+n.Name),
+		strings.Join(kubectl.FormatLabels(n.Labels), "\n"), infoTag("Press Esc or q to close"))
+	modal := newTextModal(v.app, content, "labels-modal")
+	v.app.pages.AddPage("labels-modal", modal, true, true)
+	v.app.tv.SetFocus(modal)
 }
 
 // startSession resolves the highlighted node's instance ID (preferring the

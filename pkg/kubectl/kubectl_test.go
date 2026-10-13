@@ -138,3 +138,38 @@ func TestParseFiltersEmpty(t *testing.T) {
 		t.Errorf("expected empty, got %v", f)
 	}
 }
+
+func TestFilterByLabelValueSubstring(t *testing.T) {
+	nodes := ParseNodes(sampleOutput)
+
+	filtered := FilterNodes(nodes, ParseFilters("xlarge"))
+	if len(filtered) != 1 || filtered[0].Name != "ip-10-0-142-45.us-east-1.compute.internal" {
+		t.Fatalf("expected 1 node matching value substring, got %v", filtered)
+	}
+
+	got := MatchedLabels(filtered[0], ParseFilters("c6i.xlarge"))
+	if len(got) != 1 || got[0] != "beta.kubernetes.io/instance-type=c6i.xlarge" {
+		t.Errorf("expected instance-type label, got %v", got)
+	}
+
+	if filtered = FilterNodes(nodes, ParseFilters("metal")); len(filtered) != 0 {
+		t.Errorf("expected no metal nodes, got %v", filtered)
+	}
+}
+
+func TestFilterKeyValueStaysExact(t *testing.T) {
+	nodes := ParseNodes(sampleOutput)
+
+	for _, f := range []string{"beta.kubernetes.io/instance-type=xlarge", "karpenter.sh/capacity-type=on"} {
+		if filtered := FilterNodes(nodes, ParseFilters(f)); len(filtered) != 0 {
+			t.Errorf("%q: expected no partial-value match, got %v", f, filtered)
+		}
+	}
+}
+
+func TestFormatLabels(t *testing.T) {
+	got := FormatLabels(map[string]string{"b": "2", "a": "1"})
+	if len(got) != 2 || got[0] != "a=1" || got[1] != "b=2" {
+		t.Errorf("expected sorted pairs, got %v", got)
+	}
+}
